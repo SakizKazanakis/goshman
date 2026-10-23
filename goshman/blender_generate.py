@@ -293,8 +293,10 @@ def animate():
         reset_pose()
         # First key entire armature to prevent inherited animation transforms.
         armature_action = bpy.data.actions.new("GOSHMAN_"+name)
+        slot = armature_action.slots.new(id_type="OBJECT", name=RIG.name)
         RIG.animation_data_create()
         RIG.animation_data.action = armature_action
+        RIG.animation_data.action_slot = slot
         for frame, rotations in keys.items():
             for bone_name, euler in rotations.items():
                 pb = RIG.pose.bones[bone_name]
@@ -339,7 +341,7 @@ def do_exports(project_folder, do_render, do_export, size, clips):
     bpy.ops.wm.save_as_mainfile(filepath=str(blend))
     if do_export:
         try:
-            bpy.ops.export_scene.gltf(filepath=str(out/'crocodile_cowboy.glb'),export_format='GLB',export_animations=True)
+            bpy.ops.export_scene.gltf(filepath=str(out/'crocodile_cowboy.glb'),export_format='GLB',export_animations=True, export_animation_mode='ACTIONS')
         except Exception as e:
             print('EXPORT_GLTF_FAILED:',str(e),file=sys.stderr)
         try:
@@ -352,6 +354,7 @@ def do_exports(project_folder, do_render, do_export, size, clips):
             if bpy.data.actions.get("GOSHMAN_"+clip) is None:
                 continue
             RIG.animation_data.action=bpy.data.actions["GOSHMAN_"+clip]
+            RIG.animation_data.action_slot=RIG.animation_data.action.slots[0]
             directory=out/'sprites'/clip
             directory.mkdir(parents=True,exist_ok=True)
             nframes={"idle":24,"jaw_open":24,"jumpscare":16,"walk":13,"wave":26}[clip]
