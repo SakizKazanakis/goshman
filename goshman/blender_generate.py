@@ -363,6 +363,25 @@ def do_exports(project_folder, do_render, do_export, size, clips):
                 bpy.context.scene.render.filepath=str(directory/(f"{clip}_{index:04d}.png"))
                 bpy.ops.render.render(write_still=True)
 
+    # Always produce an actual Blender camera render for visual QA, independent of full sprite sequences.
+    sc = bpy.context.scene
+    idle = bpy.data.actions.get("GOSHMAN_idle")
+    if idle is not None:
+        RIG.animation_data.action = idle
+        RIG.animation_data.action_slot = idle.slots[0]
+    sc.frame_set(1)
+    previous_size = (sc.render.resolution_x, sc.render.resolution_y)
+    previous_samples = sc.cycles.samples
+    sc.render.resolution_x = min(size, 384)
+    sc.render.resolution_y = min(size, 384)
+    sc.cycles.samples = 8
+    sc.render.filepath = str(out / "preview_front.png")
+    try:
+        bpy.ops.render.render(write_still=True)
+    finally:
+        sc.render.resolution_x, sc.render.resolution_y = previous_size
+        sc.cycles.samples = previous_samples
+
     counts={"mesh_objects":len([x for x in bpy.data.objects if x.type=='MESH']),
             "bones":len(RIG.data.bones),"actions":len(clips),"saved_blend":str(blend),
             "glb_exists":(out/'crocodile_cowboy.glb').exists(),
