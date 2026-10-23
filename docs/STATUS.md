@@ -18,7 +18,7 @@ Status is based on reproducible results from GitHub Actions, not solely on sourc
 | --- | --- | --- |
 | 00 source and environment audit | PASS | Windows end-user device and GPU profile not known |
 | 01 repository, dependencies, unit tests | PASS | Expand coverage/quality checks |
-| 02 PySide6 Windows GUI | PARTIAL | GUI source startup PASS; final user's Windows UX/feature QA needed |
+| 02 PySide6 Windows GUI | PARTIAL | GUI source startup PASS; basic 3D viewport and Qt unit-test code present; final user's Windows UX/feature QA needed |
 | 03 true procedural geometry | PARTIAL | 170 real meshes exported; visual fidelity not met |
 | 04 detailed geometry and materials | PARTIAL | primitive solids, 10 plain PBR material nodes; no texture maps, detailed scales, correct topology |
 | 05 animation and rigging | PARTIAL | 35 bones, 11 Actions exported; not all requested expressions and poses or quality checks |
@@ -30,7 +30,7 @@ Status is based on reproducible results from GitHub Actions, not solely on sourc
 
 ## Core limitation
 
-The current model is a **blockout driven by hard-coded geometry formulas plus adjustable dimensions**. Reference sheets are securely imported and catalogued; they do not yet directly reconstruct topology or details. GPT can optionally generate a parameter specification but does not generate a detailed 3D mesh. At present, the Windows application requires Blender installed separately for 3D generation. A real 3D GLB viewer within the UI is still not implemented.
+The current model is a **blockout driven by hard-coded geometry formulas plus adjustable dimensions**. Reference sheets are securely imported and catalogued; they do not yet directly reconstruct topology or details. GPT can optionally generate a parameter specification but does not generate a detailed 3D mesh. At present, the Windows application requires Blender installed separately for 3D generation. A basic Qt software-rendered GLB orbit/zoom viewer is now implemented; textured PBR, precise depth buffer, and final UX acceptance are absent.
 
 ## GitHub Actions
 

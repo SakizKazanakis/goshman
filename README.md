@@ -5,7 +5,7 @@
 ## Proven functionality
 
 - Project JSON, validated parameter specification, atomic saves, and copy-on-import user references with SHA-256 integrity checks.
-- PySide6 graphical Windows desktop shell (project/reference management, adjustable proportions, Blender subprocess, logging, cancellation, export UI and opt-in GPT reference analysis).
+- PySide6 graphical Windows desktop shell (project/reference management, adjustable proportions, Blender subprocess, logging, cancellation, export UI and opt-in GPT reference analysis). Basic interactive GLB polygon viewport supports orbit and zoom (software shading, not Blender-grade display).
 - Blender 5.2.3 LTS actual headless execution: **170 mesh objects, 35 bones, 11 animation Actions, 10 solid PBR-node materials**; successful `.blend`, `.glb` and `.fbx` export.
 - `Pillow` sprite sequence packing to PNG atlas with Clickteam Fusion JSON metadata; verified by unit tests. A true PNG front-view preview is rendered automatically by the generator in the latest codebase; see GitHub Actions for test status.
 - 12/12 local and CI unit tests; Linux true-Blender build, Windows Python Qt startup and Windows PyInstaller bundling confirmed.
@@ -15,7 +15,7 @@
 
 - Reconstruction of user-supplied reference detail is **not achieved**: the current geometry is parametric and simplified, not an accurate crocodile sculpt.
 - Texture images, UV baking, detailed scales/leather/stitching/teeth, advanced mechanical rigging and full emotion/pose library.
-- Native interactive 3D viewport inside GOSHMAN and direct Fusion project injection. PNG import into Clickteam still manual; JSON hotspot metadata is not applied automatically.
+- High-quality PBR/texture mapping in the interactive viewport and direct Fusion project injection. The initial mesh viewer is software-projected, with flat material colors and approximate visibility; PNG import into Clickteam still manual and JSON hotspot metadata is not applied automatically.
 - Verification of all animation clips by rendered animation, final `.exe` on a user's Windows machine, live GPT requests and end-to-end ComfyUI TRELLIS.2 output.
 - No bundled Blender binary, no neural model weights, no API keys and no 12 copyrighted/user-supplied PNG images committed into the public repo.
 
@@ -55,6 +55,7 @@ Generated output lives in `projects\crocodile\output\`. A complete `.blend`, `.g
 | `goshman/blender_generate.py` | Blender geometry, skeleton, Actions, export, PNG preview/render |
 | `goshman/backend.py` | Controlled Blender subprocess without shell interpolation |
 | `goshman/gui.py` | PySide6 desktop UI |
+| `goshman/preview.py` | Simple interactive Qt software 3D GLB mesh viewer |
 | `goshman_app.py` | PyInstaller-safe Windows `.exe` launcher and smoke mode |
 | `goshman/ai.py` | Strict opt-in GPT / OpenAI Responses analysis |
 | `goshman/comfy.py` | Local ComfyUI custom API-workflow connector |
