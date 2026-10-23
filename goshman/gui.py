@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 from .project import create_project, load_project, import_reference, save_project, verify_references
 from .backend import blender_command
 from .export import export_atlas
+from .preview import GLBPreview
 
 
 class Signals(QObject):
@@ -112,6 +113,12 @@ class Window(QMainWindow):
         ai_btn=QPushButton("Проанализировать референсы");ai_btn.clicked.connect(self.analyze_ai)
         av.addWidget(ai_btn); av.addStretch()
         right.addTab(ai,"GPT")
+        preview_tab=QWidget();pv=QVBoxLayout(preview_tab)
+        self.viewer=GLBPreview()
+        pv.addWidget(self.viewer,1)
+        refresh=QPushButton("Загрузить текущий GLB");refresh.clicked.connect(self.load_model_preview)
+        pv.addWidget(refresh)
+        right.addTab(preview_tab,"3D просмотр")
         main.addWidget(right);main.setSizes([460,760])
         lay.addWidget(QLabel("Журнал выполнения"))
         self.log=QPlainTextEdit();self.log.setReadOnly(True);self.log.setMaximumBlockCount(5000)
@@ -200,10 +207,22 @@ class Window(QMainWindow):
     def read_stderr(self):
         self.note(bytes(self.blender.readAllStandardError()).decode("utf-8",errors="replace"))
 
+    def load_model_preview(self):
+        if not self.folder:
+            return self.fail("Проект не открыт")
+        model = self.folder/"output"/"crocodile_cowboy.glb"
+        try:
+            info=self.viewer.load_glb(model)
+            self.note(f"3D preview: {info['mesh_nodes']} узлов, {info['preview_faces']} треугольников")
+        except Exception as e:
+            self.fail(str(e))
+
     def blender_finished(self,code,status):
         self.progress.setRange(0,1);self.progress.setValue(1 if code==0 else 0)
         self.note("Blender завершился с кодом "+str(code))
-        if code==0 and self._render_after:self.pack_existing()
+        if code==0:
+            self.load_model_preview()
+            if self._render_after:self.pack_existing()
 
     def abort(self):
         if self.blender.state()!=QProcess.NotRunning:
