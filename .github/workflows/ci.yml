@@ -59,6 +59,13 @@ jobs:
         run: python -c "from PySide6.QtCore import QTimer; from PySide6.QtWidgets import QApplication; from goshman.gui import Window; app=QApplication([]); w=Window(); QTimer.singleShot(500,app.quit); app.exec()"
       - name: Build Windows folder application
         run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" goshman_app.py
+      - name: Smoke-test packaged Windows EXE
+        env:
+          QT_QPA_PLATFORM: offscreen
+        shell: pwsh
+        run: |
+          & ".\\dist\\GOSHMAN\\GOSHMAN.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Packaged GOSHMAN.exe failed with exit code $LASTEXITCODE" }
       - uses: actions/upload-artifact@v4
         if: success()
         with:
