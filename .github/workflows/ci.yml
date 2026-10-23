@@ -20,14 +20,18 @@ jobs:
         run: python -m pip install -e '.[test]'
       - name: Unit tests
         run: python -m pytest -q
-      - name: Install Blender via Ubuntu packages
+      - name: Download verified official Blender 5.2.3 LTS
         run: |
-          sudo apt-get update
-          sudo apt-get install -y blender
+          curl --fail --location --silent --show-error https://download.blender.org/release/Blender5.2/blender-5.2.3-linux-x64.tar.xz --output blender-5.2.3-linux-x64.tar.xz
+          curl --fail --location --silent --show-error https://download.blender.org/release/Blender5.2/blender-5.2.3.sha256 --output blender-5.2.3.sha256
+          grep 'blender-5.2.3-linux-x64.tar.xz' blender-5.2.3.sha256 > blender-linux.sha256
+          sha256sum --check blender-linux.sha256
+          mkdir blender-runtime
+          tar -xJf blender-5.2.3-linux-x64.tar.xz -C blender-runtime
       - name: Generate actual Blender model
         run: |
           python -m goshman.cli new ci_project
-          blender --background --factory-startup --python-exit-code 31 --python goshman/blender_generate.py -- --project ci_project --render 0 --export 1
+          blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python goshman/blender_generate.py -- --project ci_project --render 0 --export 1
           test -s ci_project/output/crocodile_cowboy.blend
           test -s ci_project/output/crocodile_cowboy.glb
           test -s ci_project/output/crocodile_cowboy.fbx
