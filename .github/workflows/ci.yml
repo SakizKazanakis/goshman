@@ -66,8 +66,10 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         shell: pwsh
         run: |
-          & ".\\dist\\GOSHMAN\\GOSHMAN.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Packaged GOSHMAN.exe failed with exit code $LASTEXITCODE" }
+          $exe = (Resolve-Path ".\\dist\\GOSHMAN\\GOSHMAN.exe").Path
+          $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
+          Write-Output "Packaged executable exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "Packaged GOSHMAN.exe failed with exit code $($p.ExitCode)" }
       - uses: actions/upload-artifact@v4
         if: success()
         with:
