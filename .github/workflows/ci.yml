@@ -1,0 +1,63 @@
+name: GOSHMAN CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python package and test dependencies
+        run: python -m pip install -e '.[test]'
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Install Blender via Ubuntu packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+      - name: Generate actual Blender model
+        run: |
+          python -m goshman.cli new ci_project
+          blender --background --factory-startup --python-exit-code 31 --python goshman/blender_generate.py -- --project ci_project --render 0 --export 1
+          test -s ci_project/output/crocodile_cowboy.blend
+          test -s ci_project/output/crocodile_cowboy.glb
+          test -s ci_project/output/crocodile_cowboy.fbx
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: goshman-blender-output
+          path: ci_project/output/
+          if-no-files-found: ignore
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python package and packaging tools
+        run: python -m pip install -e '.[gui,ai,test]' pyinstaller
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Verify Qt desktop startup
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -c "from PySide6.QtCore import QTimer; from PySide6.QtWidgets import QApplication; from goshman.gui import Window; app=QApplication([]); w=Window(); QTimer.singleShot(500,app.quit); app.exec()"
+      - name: Build Windows folder application
+        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" goshman/gui.py
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: goshman-windows-2022
+          path: dist/GOSHMAN/
+          if-no-files-found: error
