@@ -2,7 +2,7 @@ name: GOSHMAN CI
 
 on:
   push:
-    branches: [main, feature/rig-geometry-parameters-20261024]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
