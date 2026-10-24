@@ -375,8 +375,10 @@ def setup_scene(size, character_height=6.2):
     camera_data = bpy.data.cameras.new("FrontCam")
     camera = bpy.data.objects.new("FrontCam",camera_data)
     bpy.context.collection.objects.link(camera)
-    camera.location=(0,-12,5)
-    direction=Vector((0,-.1,3.1))-camera.location
+    # Keep unusually tall/short characters centred in the orthographic frame.
+    centre_z = character_height * .5
+    camera.location=(0,-max(12., character_height*1.9),centre_z+1.9)
+    direction=Vector((0,-.1,centre_z))-camera.location
     camera.rotation_euler=direction.to_track_quat('-Z','Y').to_euler()
     camera_data.type='ORTHO';camera_data.ortho_scale=max(7.8, character_height * 1.27)
     sc=bpy.context.scene; sc.camera=camera
