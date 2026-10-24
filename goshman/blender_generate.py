@@ -30,6 +30,19 @@ def mat(name, rgb, metallic=0.0, roughness=.62):
     bsdf.inputs["Base Color"].default_value = (*c, 1)
     bsdf.inputs["Metallic"].default_value = metallic
     bsdf.inputs["Roughness"].default_value = roughness
+    # Procedural bump is evaluated in Blender; glTF still needs texture baking
+    # to reproduce it faithfully in external game renderers.
+    if name in ("Scales", "Leather", "Belly"):
+        nodes = material.node_tree.nodes
+        links = material.node_tree.links
+        noise = nodes.new("ShaderNodeTexNoise")
+        noise.inputs["Scale"].default_value = 55.0 if name == "Leather" else (19.0 if name == "Scales" else 32.0)
+        noise.inputs["Detail"].default_value = 2.0
+        bump = nodes.new("ShaderNodeBump")
+        bump.inputs["Strength"].default_value = 0.20 if name == "Scales" else 0.13
+        bump.inputs["Distance"].default_value = 0.014
+        links.new(noise.outputs["Fac"], bump.inputs["Height"])
+        links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     M[name] = material
     return material
 
@@ -115,6 +128,52 @@ def star(name, xyz, outer, material, bone=None):
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     return record(obj, material, bone)
+
+
+def cowboy_brim(name, centre, width, depth, material, bone):
+    """True ellipsoidal Western hat brim with upturned lateral tips."""
+    verts, faces = [], []
+    cx, cy, cz = centre
+    n = 48
+    # Outer and inner nested elliptical rings; underside adds physical thickness.
+    for offset in (0.0, -0.055):
+        for radius in (0.22, 0.60, 1.0):
+            for i in range(n):
+                angle = 2 * math.pi * i / n
+                x = width * radius * math.cos(angle)
+                y = depth * radius * math.sin(angle)
+                uplift = 0.25 * (abs(x) / width) ** 3
+                verts.append((cx+x, cy+y, cz+uplift+offset))
+    for surface in range(2):
+        for ring in range(2):
+            start = surface*3*n + ring*n
+            other = start+n
+            for i in range(n):
+                j = (i+1)%n
+                faces.append((start+i, start+j, other+j, other+i))
+    for ring in (0, 2):
+        a=ring*n
+        b=3*n+ring*n
+        for i in range(n):
+            j=(i+1)%n
+            faces.append((a+i,b+i,b+j,a+j))
+    mesh=bpy.data.meshes.new(name+"_mesh")
+    mesh.from_pydata(verts,[],faces)
+    mesh.update()
+    obj=bpy.data.objects.new(name,mesh)
+    bpy.context.collection.objects.link(obj)
+    return record(obj,material,bone)
+
+
+def fang(name, xyz, radius, height, upper, bone):
+    """Pointed tooth geometry with the apex toward the opposing jaw."""
+    bpy.ops.mesh.primitive_cone_add(vertices=12,radius1=radius,radius2=0.0,
+                                    depth=height,location=xyz)
+    obj=bpy.context.object
+    obj.name=name
+    if upper:
+        obj.rotation_euler[0]=math.pi
+    return record(obj,"White",bone)
 
 
 def make_rig(spec):
@@ -224,10 +283,10 @@ def build(spec):
     for i in range(9):
         # Rows of separated teeth with opposing attachment points.
         x = -.50 + i*.125
-        cylinder("Upper_tooth_%02d"%i,(x,-.95*snout,4.675),.047,.19,"White","head",12)
-        cylinder("Lower_tooth_%02d"%i,(x,-.89*snout,4.63),.042,.14,"White","jaw",12)
+        fang("Upper_tooth_%02d"%i,(x,-.95*snout,4.675),.057,.19,True,"head")
+        fang("Lower_tooth_%02d"%i,(x,-.89*snout,4.63),.050,.14,False,"jaw")
     # Hat and star: independent hat elements follow the head.
-    cylinder("Hat_brim",(0,0,5.78),1.07,.09,"Leather","head",48)
+    cowboy_brim("Hat_brim",(0,0,5.78),1.15,.89,"Leather","head")
     cylinder("Hat_crown",(0,0,6.00),.61,.39,"Leather","head",48)
     cylinder("Hat_band",(0,0,5.88),.63,.10,"Sole","head",48)
     star("Hat_sheriff_star",(0,-.655,6.02),.22,"Gold","head")
