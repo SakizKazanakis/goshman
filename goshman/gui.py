@@ -103,6 +103,9 @@ class Window(QMainWindow):
         v.addWidget(atlas)
         open_output=QPushButton("Открыть папку экспорта");open_output.clicked.connect(self.open_output)
         v.addWidget(open_output)
+        qa_button=QPushButton("Проверить экспорт (3D / PNG / анимации)")
+        qa_button.clicked.connect(self.audit_output)
+        v.addWidget(qa_button)
         v.addStretch()
         right.addTab(tab_b,"Генерация / Экспорт")
         ai=QWidget();av=QVBoxLayout(ai)
@@ -255,6 +258,25 @@ class Window(QMainWindow):
         out=self.folder/"output"
         out.mkdir(exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(out)))
+
+    def audit_output(self):
+        if not self.folder:
+            return self.fail("Проект не открыт")
+        try:
+            from .quality import audit_project
+            report = audit_project(self.folder)
+            self.note("Проверка экспорта: " + report["status"])
+            self.note("GLB: " + json.dumps(report["glb"], ensure_ascii=False))
+            for warning in report["warnings"]:
+                self.note("ПРЕДУПРЕЖДЕНИЕ: " + warning)
+            for error in report["errors"]:
+                self.note("ОШИБКА: " + error)
+            if report["errors"]:
+                QMessageBox.warning(self, "Проверка GOSHMAN", "Найдены ошибки: " + str(len(report["errors"])))
+            else:
+                QMessageBox.information(self, "Проверка GOSHMAN", "Технические проверки пройдены. Визуальное сходство с референсами не подтверждено.")
+        except Exception as exc:
+            self.fail(str(exc))
 
     def save_ai_key(self):
         key=self.api_key_input.text().strip()
