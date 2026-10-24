@@ -150,7 +150,10 @@ def cowboy_brim(name, centre, width, depth, material, bone):
             other = start+n
             for i in range(n):
                 j = (i+1)%n
-                faces.append((start+i, start+j, other+j, other+i))
+                if surface == 0:
+                    faces.append((start+i, other+i, other+j, start+j))
+                else:
+                    faces.append((start+i, start+j, other+j, other+i))
     for ring in (0, 2):
         a=ring*n
         b=3*n+ring*n
