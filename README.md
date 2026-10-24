@@ -63,6 +63,26 @@ Generated output lives in `projects\crocodile\output\`. A complete `.blend`, `.g
 | `goshman/quality.py` | Read-only Blender/GLB/PNG structural export validation |
 | `.github/workflows/ci.yml` | Linux Blender 5.2.3 and Windows packaged app tests |
 
+## UV PBR maps and multi-view reference preparation
+
+The Blender generator now synthesizes four real UV texture channels (base colour,
+roughness, metallic and tangent-space normal) for its ten procedural materials.
+Select **256, 512, 1024 or 2048 px** in the Windows interface, or use
+`python -m goshman.cli generate crocodile_project --pbr-resolution 2048`.
+Material maps are saved under `output/pbr/`, included in `.blend` and
+linked inside the exported `.glb`. These maps are generated from a
+deterministic recipe, **not** a high-poly-to-low-poly Cycles bake, and do not
+copy texture pixels or precise shape from the provided character reference.
+
+For the private 1491×1055 full-body turnaround sheet included with the
+crocodile project, `python -m goshman.cli prepare-views crocodile_project`
+creates cropped front, left, back, right and three-quarter source panels under
+`derived/turnaround/` and records image hashes. This cropping does not imply
+calibrated orthographic photographs or complete 3D reconstruction.
+
+Full acceptance status and unverified Clickteam/AI stages:
+[docs/ACCEPTANCE_2026-10-24.md](docs/ACCEPTANCE_2026-10-24.md).
+
 ## Structural export audit
 
 Run `python -m goshman.cli audit projects\\crocodile` after generation, or use the GUI's
