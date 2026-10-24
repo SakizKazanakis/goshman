@@ -75,6 +75,9 @@ class Window(QMainWindow):
         self.preview.setMinimumSize(310,225); self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setStyleSheet("background: #232a31; color: #aaa; border-radius: 8px;")
         ll.addWidget(self.preview)
+        prep=QPushButton("Подготовить 5 ракурсов")
+        prep.clicked.connect(self.prepare_views)
+        ll.addWidget(prep)
         main.addWidget(left)
         right = QTabWidget(); main.addWidget(right)
         tab_spec = QWidget(); form = QFormLayout(tab_spec)
@@ -191,6 +194,17 @@ class Window(QMainWindow):
         path=self.folder/self.project.references[index].filename
         img=QPixmap(str(path))
         self.preview.setPixmap(img.scaled(self.preview.size(),Qt.KeepAspectRatio,Qt.SmoothTransformation))
+
+    def prepare_views(self):
+        if not self.folder:
+            return self.fail("Проект не открыт")
+        try:
+            from .reference_views import prepare_turnaround
+            manifest=prepare_turnaround(self.folder)
+            self.note("Подготовлены ракурсы: "+", ".join(manifest["views"].keys()))
+            self.note("Результат сохранён в derived/turnaround; это референсы, не готовая 3D-модель.")
+        except Exception as exc:
+            self.fail(str(exc))
 
     def save_spec(self):
         if not self.project:return self.fail("Проект не открыт")
