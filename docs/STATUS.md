@@ -33,7 +33,7 @@
 - The material noise/bump improves Blender renders but **is not baked into glTF/FBX texture maps**. Game-engine fidelity therefore remains limited.
 - New facial Actions are keyframed control-test approximations, not image-to-3D reconstruction or facial motion capture.
 - Windows executable is unsigned alpha. Blender is installed separately. User project artwork and OpenAI API keys are not bundled.
-- The Windows VPS from earlier work is **not used**. GitHub Actions performs isolated test execution.
+- The VPS from earlier work is **not used**. GitHub Actions performs isolated test execution.
 
 ## Next blocking requirements
 
