@@ -5,6 +5,7 @@ import sys
 import json
 from .project import create_project, load_project, import_reference, save_project, verify_references
 from .export import export_atlas
+from .quality import audit_project
 from .backend import run_blender
 
 
@@ -26,6 +27,8 @@ def main(argv=None) -> int:
     gen.add_argument("--render", action="store_true")
     gen.add_argument("--no-export", action="store_true")
     gen.add_argument("--size", type=int, default=512)
+    audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
+    audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
     atlas.add_argument("input_dir", type=Path)
     atlas.add_argument("output", type=Path)
@@ -53,6 +56,10 @@ def main(argv=None) -> int:
             return result.returncode
         elif args.action == "atlas":
             print(json.dumps(export_atlas(args.input_dir, args.output, args.name, args.fps, args.columns), ensure_ascii=False, indent=2))
+        elif args.action == "audit":
+            report = audit_project(args.folder)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0 if report["status"] == "PASS_TECHNICAL" else 2
         return 0
     except (OSError, ValueError, RuntimeError) as err:
         print(f"GOSHMAN ERROR: {err}", file=sys.stderr)

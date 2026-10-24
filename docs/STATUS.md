@@ -1,40 +1,43 @@
-# GOSHMAN development status — 2026-10-23
+# GOSHMAN development status — 2026-10-24
 
-Status is based on reproducible results from GitHub Actions, not solely on source-code presence. **This is an alpha development build, not a reference-faithful finished character.**
+**Not a complete, reference-faithful 3D character generator.** All statuses below distinguish real runtime verification from unimplemented or untested requirements.
 
-## Verified evidence
+## Verification evidence
 
-- Python unit tests: 12/12 PASS on Linux and Windows CI.
-- Linux runner downloaded Blender 5.2.3 LTS from the official host and verified SHA-256.
-- Actual headless Blender scene generation succeeded: 170 mesh objects, 35 armature bones, 11 animation Actions, 10 mesh materials. Files `.blend`, `.glb`, `.fbx` were exported and uploaded as GitHub Actions artifacts.
-- GLB file parsed as a valid glTF 2.0 container and confirmed 170 meshes, 1 skin/35 joints, 11 animations.
-- Windows Server 2022 runner assembled `dist/GOSHMAN/GOSHMAN.exe` with PyInstaller. Source GUI `QApplication`/`Window` offscreen smoke test passed.
-- Additional CI gates: packaged `.exe` offscreen smoke test and actual Blender front PNG render. Their result must be read from the latest GitHub Actions run; implementation alone is NOT a PASS.
-- Public repository does not contain user-supplied reference images, local projects, or private API keys.
+- Latest verified Linux Blender + Windows build: https://github.com/SakizKazanakis/goshman/actions/runs/40080425782 — both jobs **SUCCESS**.
+- Actual Blender 5.2.3 LTS build: **at least 170 mesh objects, 39 bones, 26 Actions**, exported .blend, .fbx, .glb, actual RGBA front-view render.
+- CI included nondefault `height = 7.44` (1.2x overall scale) and `tail_length = 3.6` (1.5x segment offset). Build report and exported glTF animation count passed assertions.
+- Linux and Windows Python tests pass, Qt offscreen launch passes, PyInstaller folder EXE builds and passes headless self-test.
+- Structural validation now checks references' SHA-256, GLB header/meshes/skins/animations, output files, PNG alpha and sprite dimensions. `python -m goshman.cli audit <project-directory>` reports `PASS_TECHNICAL` or `FAIL`; it never equates structural validity with visual fidelity.
+- 12 private user-provided reference sheets were packaged as a local GOSHMAN project for conversation delivery; **none was committed to this public repository**.
 
 ## Phase matrix
 
-| Phase | Verified status | Remaining work |
+| Phase | Status | Verified progress / still missing |
 | --- | --- | --- |
-| 00 source and environment audit | PASS | Windows end-user device and GPU profile not known |
-| 01 repository, dependencies, unit tests | PASS | Expand coverage/quality checks |
-| 02 PySide6 Windows GUI | PARTIAL | GUI source startup PASS; basic 3D viewport and Qt unit-test code present; final user's Windows UX/feature QA needed |
-| 03 true procedural geometry | PARTIAL | 170 real meshes exported; visual fidelity not met |
-| 04 detailed geometry and materials | PARTIAL | primitive solids, 10 plain PBR material nodes; no texture maps, detailed scales, correct topology |
-| 05 animation and rigging | PARTIAL | 35 bones, 11 Actions exported; not all requested expressions and poses or quality checks |
-| 06 Clickteam export | PARTIAL | FBX/GLB created, PNG atlas packer validated; real engine import not tested |
-| 07 GPT structured analysis | SOURCE ONLY | real API key/permissioned vision request and user-confirmed analysis needed |
-| 08 neural Image-to-3D | ADAPTER ONLY | ComfyUI workflow, model weights, compatible NVIDIA GPU and output validation absent |
-| 09 Windows packaging | PARTIAL | PyInstaller artifact built, bundled .exe smoke verification pending latest CI |
-| 10 acceptance | NOT COMPLETE | user-reviewed renders, Clickteam integration and scene visual accuracy required |
+| 00 Audit of code and tools | PASS for known environment | User's Windows GPU, VRAM and real local Clickteam setup remain unknown |
+| 01 Repository & CI | PASS | Reproducible branch CI and tests |
+| 02 Windows GUI | PARTIAL | Qt/PyInstaller smoke PASS, GUI works in CI; real-user interaction and final UX QA absent |
+| 03 Procedural geometry | PARTIAL | Real meshes and control of height, head, snout and tail; exact geometry reconstruction from reference views NOT achieved |
+| 04 Surface/mechanical detailing | PARTIAL | Curved hat brim, pointed teeth, node-based procedural relief; UV/PBR baked textures, refined topology, scale sculpt and stitch details missing |
+| 05 Rigging/animation | PARTIAL | 39 mechanical bones and 26 named Actions, brows/lids/eyes/jaw/tail controls; full independent finger phalanges, animation realism and visual acceptance missing |
+| 06 Fusion export & QA | PARTIAL | BLEND/FBX/GLB exports and PNG sprite packing plus QA work; direct Clickteam 2.5 engine integration not runtime-tested |
+| 07 GPT analysis | PARTIAL | Opt-in reference roles, strict parameter schema, secure credential UI, user approval prior to application; live request not verified |
+| 08 Neural Image-to-3D | ADAPTER ONLY | ComfyUI workflow queue exists, no compatible GPU/image-to-3D model installed or tested |
+| 09 Windows executable | PARTIAL | Automated packaged EXE smoke PASS on GitHub Windows runner; consumer PC deployment/Blender availability not tested |
+| 10 Final acceptance | NOT COMPLETE | Reference-accurate character, visual multi-view QA, all motion clips, Clickteam import, AI reconstruction missing |
 
-## Core limitation
+## Engineering caveats
 
-The current model is a **blockout driven by hard-coded geometry formulas plus adjustable dimensions**. Reference sheets are securely imported and catalogued; they do not yet directly reconstruct topology or details. GPT can optionally generate a parameter specification but does not generate a detailed 3D mesh. At present, the Windows application requires Blender installed separately for 3D generation. A basic Qt software-rendered GLB orbit/zoom viewer is now implemented; textured PBR, precise depth buffer, and final UX acceptance are absent.
+- `overall_scale` changes armature object transform and the meshes parented to its bones; `tail_length` alters seven mechanical tail bones and all seven associated geometry segments.
+- The material noise/bump improves Blender renders but **is not baked into glTF/FBX texture maps**. Game-engine fidelity therefore remains limited.
+- New facial Actions are keyframed control-test approximations, not image-to-3D reconstruction or facial motion capture.
+- Windows executable is unsigned alpha. Blender is installed separately. User project artwork and OpenAI API keys are not bundled.
+- The VPS from earlier work is **not used**. GitHub Actions performs isolated test execution.
 
-## GitHub Actions
+## Next blocking requirements
 
-- Most recent complete green run with generated Blender assets and Windows packaging: https://github.com/SakizKazanakis/goshman/actions/runs/40021230806
-- Runs for packaged .exe smoke test and Blender PNG preview: https://github.com/SakizKazanakis/goshman/actions
-
-All third-party runtimes/models remain separately installed and licensed. No Windows binary is signed. Windows executable execution on a consumer PC with installed Blender has not been tested.
+1. Accurate multi-view geometry fitting or a validated AI image-to-mesh reconstruction with editable topology.
+2. Mechanical detail refinement, rig completeness, actual UV texture baking and PBR export parity.
+3. End-to-end visual acceptance against the 12 original reference sheets.
+4. Clickteam Fusion runtime import and real Windows end-user functional tests.

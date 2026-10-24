@@ -30,6 +30,19 @@ def mat(name, rgb, metallic=0.0, roughness=.62):
     bsdf.inputs["Base Color"].default_value = (*c, 1)
     bsdf.inputs["Metallic"].default_value = metallic
     bsdf.inputs["Roughness"].default_value = roughness
+    # Procedural bump is evaluated in Blender; glTF still needs texture baking
+    # to reproduce it faithfully in external game renderers.
+    if name in ("Scales", "Leather", "Belly"):
+        nodes = material.node_tree.nodes
+        links = material.node_tree.links
+        noise = nodes.new("ShaderNodeTexNoise")
+        noise.inputs["Scale"].default_value = 55.0 if name == "Leather" else (19.0 if name == "Scales" else 32.0)
+        noise.inputs["Detail"].default_value = 2.0
+        bump = nodes.new("ShaderNodeBump")
+        bump.inputs["Strength"].default_value = 0.20 if name == "Scales" else 0.13
+        bump.inputs["Distance"].default_value = 0.014
+        links.new(noise.outputs["Fac"], bump.inputs["Height"])
+        links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     M[name] = material
     return material
 
@@ -117,8 +130,59 @@ def star(name, xyz, outer, material, bone=None):
     return record(obj, material, bone)
 
 
-def make_rig():
+def cowboy_brim(name, centre, width, depth, material, bone):
+    """True ellipsoidal Western hat brim with upturned lateral tips."""
+    verts, faces = [], []
+    cx, cy, cz = centre
+    n = 48
+    # Outer and inner nested elliptical rings; underside adds physical thickness.
+    for offset in (0.0, -0.055):
+        for radius in (0.22, 0.60, 1.0):
+            for i in range(n):
+                angle = 2 * math.pi * i / n
+                x = width * radius * math.cos(angle)
+                y = depth * radius * math.sin(angle)
+                uplift = 0.25 * (abs(x) / width) ** 3
+                verts.append((cx+x, cy+y, cz+uplift+offset))
+    for surface in range(2):
+        for ring in range(2):
+            start = surface*3*n + ring*n
+            other = start+n
+            for i in range(n):
+                j = (i+1)%n
+                if surface == 0:
+                    faces.append((start+i, other+i, other+j, start+j))
+                else:
+                    faces.append((start+i, start+j, other+j, other+i))
+    for ring in (0, 2):
+        a=ring*n
+        b=3*n+ring*n
+        for i in range(n):
+            j=(i+1)%n
+            faces.append((a+i,b+i,b+j,a+j))
+    mesh=bpy.data.meshes.new(name+"_mesh")
+    mesh.from_pydata(verts,[],faces)
+    mesh.update()
+    obj=bpy.data.objects.new(name,mesh)
+    bpy.context.collection.objects.link(obj)
+    return record(obj,material,bone)
+
+
+def fang(name, xyz, radius, height, upper, bone):
+    """Pointed tooth geometry with the apex toward the opposing jaw."""
+    bpy.ops.mesh.primitive_cone_add(vertices=12,radius1=radius,radius2=0.0,
+                                    depth=height,location=xyz)
+    obj=bpy.context.object
+    obj.name=name
+    if upper:
+        obj.rotation_euler[0]=math.pi
+    return record(obj,"White",bone)
+
+
+def make_rig(spec):
+    """Generate independent mechanical controls from the validated character spec."""
     global RIG
+    tail_multiplier = float(spec.get("tail_length", 2.4)) / 2.4
     arm = bpy.data.armatures.new("GOSHMAN_armature")
     RIG = bpy.data.objects.new("GOSHMAN_Rig", arm)
     bpy.context.collection.objects.link(RIG)
@@ -137,6 +201,8 @@ def make_rig():
     ]
     for side, sign in (("L", -1), ("R", 1)):
         bones += [
+            ("brow."+side, (sign*.35,-.52,5.58), (sign*.35,-.72,5.58), "head"),
+            ("lid."+side, (sign*.35,-.55,5.37), (sign*.35,-.75,5.37), "head"),
             ("upper_arm."+side, (sign*.78,0,4.0), (sign*1.17,0,3.40), "torso"),
             ("forearm."+side, (sign*1.17,0,3.40), (sign*1.33,-.03,2.85), "upper_arm."+side),
             ("hand."+side, (sign*1.33,-.03,2.85), (sign*1.37,-.13,2.56), "forearm."+side),
@@ -150,7 +216,7 @@ def make_rig():
             bones.append((f, (hx,-.22,2.57), (hx,-.35,2.32), "hand."+side))
     start = (0,.54,2.06)
     for i in range(7):
-        next_point = (0,.54+(i+1)*.30,2.06-(i+1)*.15)
+        next_point = (0,.54+(i+1)*.30*tail_multiplier,2.06-(i+1)*.15*tail_multiplier)
         bones.append(("tail_%02d" % (i+1), start, next_point,
                       "pelvis" if i == 0 else "tail_%02d" % i))
         start = next_point
@@ -168,8 +234,10 @@ def make_rig():
 
 
 def build(spec):
-    make_rig()
+    make_rig(spec)
     scale = float(spec.get("head_scale", 1.0))
+    height_multiplier = float(spec.get("height", 6.2)) / 6.2
+    tail_multiplier = float(spec.get("tail_length", 2.4)) / 2.4
     snout = float(spec.get("snout_length", 1.0))
     eye = float(spec.get("eye_scale", 1.0))
     detail = int(spec.get("armor_detail", 2))
@@ -211,16 +279,17 @@ def build(spec):
         ellipsoid("Eyeball_"+side,(sign*.35*scale,-.53,5.26),(.245*eye,.16,.258*eye),"White","eye."+side)
         ellipsoid("Iris_"+side,(sign*.35*scale,-.685,5.26),(.129*eye,.059,.135*eye),"Iris","eye."+side)
         ellipsoid("Pupil_"+side,(sign*.35*scale,-.736,5.26),(.068*eye,.032,.077*eye),"Black","eye."+side)
-        ellipsoid("Eyebrow_"+side,(sign*.35*scale,-.54,5.59),(.29,.11,.095),"Leather","head")
+        ellipsoid("Eyebrow_"+side,(sign*.35*scale,-.54,5.59),(.29,.11,.095),"Leather","brow."+side)
+        ellipsoid("Upper_eyelid_"+side,(sign*.35*scale,-.59,5.42),(.24*eye,.13,.072),"Scales","lid."+side,24,12)
     ellipsoid("Lower_jaw",(0,-.56*snout,4.45),(.66*scale,.56*snout,.20),"Belly","jaw")
     ellipsoid("Tongue",(0,-.76*snout,4.61),(.27,.35*snout,.055),"Mouth","jaw")
     for i in range(9):
         # Rows of separated teeth with opposing attachment points.
         x = -.50 + i*.125
-        cylinder("Upper_tooth_%02d"%i,(x,-.95*snout,4.675),.047,.19,"White","head",12)
-        cylinder("Lower_tooth_%02d"%i,(x,-.89*snout,4.63),.042,.14,"White","jaw",12)
+        fang("Upper_tooth_%02d"%i,(x,-.95*snout,4.675),.057,.19,True,"head")
+        fang("Lower_tooth_%02d"%i,(x,-.89*snout,4.63),.050,.14,False,"jaw")
     # Hat and star: independent hat elements follow the head.
-    cylinder("Hat_brim",(0,0,5.78),1.07,.09,"Leather","head",48)
+    cowboy_brim("Hat_brim",(0,0,5.78),1.15,.89,"Leather","head")
     cylinder("Hat_crown",(0,0,6.00),.61,.39,"Leather","head",48)
     cylinder("Hat_band",(0,0,5.88),.63,.10,"Sole","head",48)
     star("Hat_sheriff_star",(0,-.655,6.02),.22,"Gold","head")
@@ -247,7 +316,7 @@ def build(spec):
             capsule_between("Finger_base_%s_%d"%(side,finger),(fx,-.15,2.6),(fx,-.23,2.38),.045,"Metal",b,.034)
             capsule_between("Claw_%s_%d"%(side,finger),(fx,-.23,2.38),(fx,-.32,2.22),.037,"Metal",b,0.0)
     # Tail chain: seven overlapping but independent rigid segments with dorsal spikes.
-    starts = [(0,.54+i*.30,2.06-i*.15) for i in range(8)]
+    starts = [(0,.54+i*.30*tail_multiplier,2.06-i*.15*tail_multiplier) for i in range(8)]
     for i in range(7):
         a, b = starts[i], starts[i+1]
         radius = .36*(1-i/8)
@@ -265,6 +334,9 @@ def build(spec):
         for i in range(4):
             for s in (-1,1):
                 ellipsoid("Temple_scute_%d_%s"%(i,s),(s*.59,-.04+i*.20,5.05),(.105,.11,.06),"Scales","head",12,8)
+    # Rig scale is inherited by bone-parented body parts, while tail proportions
+    # are independently driven by tail_length. Both sliders now change geometry.
+    RIG.scale = (height_multiplier,) * 3
     return len(PARTS)
 
 
@@ -275,39 +347,83 @@ def reset_pose():
 
 
 def animate():
-    # Animation actions are genuine transform F-curves on an armature, not static images.
+    """Bake independent Actions with explicit neutral first-frame keys for every bone.
+
+    These are mechanical test poses, not motion-captured, reference-matched acting.
+    """
     tracks = {
-        "idle": {1:{"head":(0,0,0)},12:{"head":(.035,0,.025)},24:{"head":(0,0,0)}},
-        "jaw_open": {1:{"jaw":(0,0,0)},12:{"jaw":(-.68,0,0)},24:{"jaw":(0,0,0)}},
-        "jumpscare": {1:{"jaw":(0,0,0)},5:{"head":(-.30,0,0),"jaw":(-.9,0,0),"upper_arm.L":(0,0,-.45),"upper_arm.R":(0,0,.45)},10:{"head":(-.10,0,0),"jaw":(-.95,0,0)},16:{"head":(0,0,0),"jaw":(0,0,0)}},
-        "look_left": {1:{"head":(0,0,0)},10:{"head":(0,0,.35)},18:{"head":(0,0,0)}},
-        "angry": {1:{"head":(0,0,0)},8:{"head":(-.14,0,0),"jaw":(-.25,0,0)},16:{"head":(0,0,0),"jaw":(0,0,0)}},
-        "wave": {1:{"upper_arm.R":(0,0,0)},9:{"upper_arm.R":(0,0,.9),"forearm.R":(-.3,0,0)},18:{"forearm.R":(.15,0,0)},26:{"upper_arm.R":(0,0,0),"forearm.R":(0,0,0)}},
-        "tail_sway": {1:{"tail_01":(0,0,-.17)},12:{"tail_01":(0,0,.19)},24:{"tail_01":(0,0,-.17)}},
-        "walk": {1:{"thigh.L":(.25,0,0),"thigh.R":(-.25,0,0)},7:{"thigh.L":(-.25,0,0),"thigh.R":(.25,0,0)},13:{"thigh.L":(.25,0,0),"thigh.R":(-.25,0,0)}},
-        "attack": {1:{"head":(0,0,0)},6:{"head":(-.2,0,0),"jaw":(-.8,0,0)},14:{"head":(0,0,0),"jaw":(0,0,0)}},
-        "a_pose":{1:{"upper_arm.L":(0,0,-.30),"upper_arm.R":(0,0,.30)}},
-        "t_pose":{1:{"upper_arm.L":(0,0,-.95),"upper_arm.R":(0,0,.95)}},
+        "idle": {1: {"head":(0,0,0)}, 12: {"head":(.035,0,.025)}, 24: {"head":(0,0,0)}},
+        "jaw_open": {1: {"jaw":(0,0,0)}, 12: {"jaw":(-.68,0,0)}, 24: {"jaw":(0,0,0)}},
+        "jumpscare": {1: {"jaw":(0,0,0)}, 5: {"head":(-.30,0,0), "jaw":(-.9,0,0),
+            "upper_arm.L":(0,0,-.45), "upper_arm.R":(0,0,.45)},
+            10: {"head":(-.1,0,0), "jaw":(-.95,0,0)},
+            16: {"head":(0,0,0), "jaw":(0,0,0), "upper_arm.L":(0,0,0), "upper_arm.R":(0,0,0)}},
+        "look_left": {1: {"eye.L":(0,0,.24), "eye.R":(0,0,.24)},
+            10: {"head":(0,0,.25)}, 18: {"head":(0,0,0), "eye.L":(0,0,0), "eye.R":(0,0,0)}},
+        "look_right": {1: {"eye.L":(0,0,-.24), "eye.R":(0,0,-.24)},
+            10: {"head":(0,0,-.25)}, 18: {"head":(0,0,0), "eye.L":(0,0,0), "eye.R":(0,0,0)}},
+        "angry": {1: {"brow.L":(0,0,-.25), "brow.R":(0,0,.25), "jaw":(-.20,0,0)},
+            8: {"head":(-.14,0,0), "jaw":(-.35,0,0)}, 16: {"head":(0,0,0)}},
+        "friendly": {1: {"brow.L":(0,0,.12), "brow.R":(0,0,-.12), "jaw":(-.27,0,0)},
+            12: {"jaw":(-.34,0,0)}, 24: {"jaw":(-.27,0,0)}},
+        "suspicious": {1: {"brow.L":(0,0,-.30), "brow.R":(0,0,.16), "lid.L":(.15,0,0)},
+            12: {"head":(0,0,.14)}, 24: {"head":(0,0,0)}},
+        "scared": {1: {"brow.L":(0,0,.32), "brow.R":(0,0,-.32), "jaw":(-.45,0,0)},
+            8: {"head":(.09,0,0)}, 16: {"head":(0,0,0)}},
+        "surprised": {1: {"brow.L":(0,0,.20), "brow.R":(0,0,-.20), "jaw":(-.65,0,0)}},
+        "roar": {1: {"jaw":(-.92,0,0), "head":(-.15,0,0)},
+            7: {"head":(-.21,0,0)}, 14: {"head":(-.15,0,0)}},
+        "mouth_closed": {1: {"jaw":(0,0,0)}},
+        "mouth_half": {1: {"jaw":(-.42,0,0)}},
+        "mouth_wide": {1: {"jaw":(-.90,0,0)}},
+        "blink": {1: {"lid.L":(0,0,0), "lid.R":(0,0,0)},
+            3: {"lid.L":(-.48,0,0), "lid.R":(-.48,0,0)},
+            6: {"lid.L":(0,0,0), "lid.R":(0,0,0)}},
+        "wave": {1: {"upper_arm.R":(0,0,0)}, 9: {"upper_arm.R":(0,0,.9), "forearm.R":(-.3,0,0)},
+            18: {"forearm.R":(.15,0,0)}, 26: {"upper_arm.R":(0,0,0), "forearm.R":(0,0,0)}},
+        "tail_sway": {1: {"tail_01":(0,0,-.17), "tail_02":(0,0,-.08)},
+            12: {"tail_01":(0,0,.19), "tail_02":(0,0,.12)},
+            24: {"tail_01":(0,0,-.17), "tail_02":(0,0,-.08)}},
+        "walk": {1: {"thigh.L":(.25,0,0), "thigh.R":(-.25,0,0)},
+            7: {"thigh.L":(-.25,0,0), "thigh.R":(.25,0,0)},
+            13: {"thigh.L":(.25,0,0), "thigh.R":(-.25,0,0)}},
+        "sneak": {1: {"torso":(.14,0,0), "thigh.L":(.18,0,0), "thigh.R":(-.22,0,0)},
+            12: {"torso":(.18,0,0), "thigh.L":(-.14,0,0), "thigh.R":(.18,0,0)},
+            24: {"torso":(.14,0,0), "thigh.L":(.18,0,0), "thigh.R":(-.22,0,0)}},
+        "attack": {1: {"head":(0,0,0)}, 6: {"head":(-.2,0,0), "jaw":(-.8,0,0)},
+            14: {"head":(0,0,0), "jaw":(0,0,0)}},
+        "lunge": {1: {"torso":(0,0,0)}, 5: {"torso":(.42,0,0), "head":(-.23,0,0),
+            "jaw":(-.86,0,0), "upper_arm.L":(0,0,-.7), "upper_arm.R":(0,0,.7)},
+            12: {"torso":(0,0,0), "head":(0,0,0), "jaw":(0,0,0),
+            "upper_arm.L":(0,0,0), "upper_arm.R":(0,0,0)}},
+        "hands_on_hips": {1: {"upper_arm.L":(0,0,-.48), "upper_arm.R":(0,0,.48),
+            "forearm.L":(-.45,0,0), "forearm.R":(-.45,0,0)}},
+        "threat": {1: {"jaw":(-.56,0,0), "upper_arm.L":(0,0,-.55),
+            "upper_arm.R":(0,0,.55), "hand.L":(.2,0,0), "hand.R":(.2,0,0)}},
+        "a_pose": {1: {"upper_arm.L":(0,0,-.30), "upper_arm.R":(0,0,.30)}},
+        "t_pose": {1: {"upper_arm.L":(0,0,-.95), "upper_arm.R":(0,0,.95)}},
+        "neutral": {1: {"head":(0,0,0), "jaw":(0,0,0)}},
     }
     for name, keys in tracks.items():
         reset_pose()
-        # First key entire armature to prevent inherited animation transforms.
-        armature_action = bpy.data.actions.new("GOSHMAN_"+name)
-        slot = armature_action.slots.new(id_type="OBJECT", name=RIG.name)
+        action = bpy.data.actions.new("GOSHMAN_" + name)
+        slot = action.slots.new(id_type="OBJECT", name=RIG.name)
         RIG.animation_data_create()
-        RIG.animation_data.action = armature_action
+        RIG.animation_data.action = action
         RIG.animation_data.action_slot = slot
-        for frame, rotations in keys.items():
+        # Ensure unkeyed bones have a deterministic rest pose when switching Actions.
+        for pose_bone in RIG.pose.bones:
+            pose_bone.keyframe_insert(data_path="rotation_euler", frame=1, group=pose_bone.name)
+        for frame, rotations in sorted(keys.items()):
             for bone_name, euler in rotations.items():
-                pb = RIG.pose.bones[bone_name]
-                pb.rotation_euler = euler
-                pb.keyframe_insert(data_path="rotation_euler", frame=frame, group=bone_name)
-        armature_action.use_fake_user = True
+                pose_bone = RIG.pose.bones[bone_name]
+                pose_bone.rotation_euler = euler
+                pose_bone.keyframe_insert(data_path="rotation_euler", frame=frame, group=bone_name)
+        action.use_fake_user = True
     reset_pose()
     return list(tracks)
 
-
-def setup_scene(size):
+def setup_scene(size, character_height=6.2):
     world = bpy.context.scene.world
     world.color = (.16,.16,.16)
     world.use_nodes = True
@@ -321,10 +437,12 @@ def setup_scene(size):
     camera_data = bpy.data.cameras.new("FrontCam")
     camera = bpy.data.objects.new("FrontCam",camera_data)
     bpy.context.collection.objects.link(camera)
-    camera.location=(0,-12,5)
-    direction=Vector((0,-.1,3.1))-camera.location
+    # Keep unusually tall/short characters centred in the orthographic frame.
+    centre_z = character_height * .5
+    camera.location=(0,-max(12., character_height*1.9),centre_z+1.9)
+    direction=Vector((0,-.1,centre_z))-camera.location
     camera.rotation_euler=direction.to_track_quat('-Z','Y').to_euler()
-    camera_data.type='ORTHO';camera_data.ortho_scale=7.8
+    camera_data.type='ORTHO';camera_data.ortho_scale=max(7.8, character_height * 1.27)
     sc=bpy.context.scene; sc.camera=camera
     sc.render.engine='CYCLES'
     sc.cycles.samples=16
@@ -383,7 +501,10 @@ def do_exports(project_folder, do_render, do_export, size, clips):
         sc.cycles.samples = previous_samples
 
     counts={"mesh_objects":len([x for x in bpy.data.objects if x.type=='MESH']),
-            "bones":len(RIG.data.bones),"actions":len(clips),"saved_blend":str(blend),
+            "bones":len(RIG.data.bones),"actions":len(clips),
+            "overall_scale":round(float(RIG.scale.x), 6),
+            "tail_tip_y":round(float(RIG.data.bones['tail_07'].tail_local.y), 6),
+            "saved_blend":str(blend),
             "glb_exists":(out/'crocodile_cowboy.glb').exists(),
             "fbx_exists":(out/'crocodile_cowboy.fbx').exists()}
     (out/'build_report.json').write_text(json.dumps(counts,indent=2),encoding='utf-8')
@@ -401,7 +522,7 @@ def main():
     folder=Path(args.project).resolve(strict=True)
     raw=json.loads((folder/'project.json').read_text('utf-8'))
     bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
-    count=build(raw['spec']); clips=animate();setup_scene(args.size)
+    count=build(raw['spec']); clips=animate();setup_scene(args.size, float(raw['spec'].get('height', 6.2)))
     do_exports(folder,args.render=='1',args.export=='1',args.size,clips)
     print('Built geometry objects:', count)
 

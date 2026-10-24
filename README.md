@@ -6,17 +6,17 @@
 
 - Project JSON, validated parameter specification, atomic saves, and copy-on-import user references with SHA-256 integrity checks.
 - PySide6 graphical Windows desktop shell (project/reference management, adjustable proportions, Blender subprocess, logging, cancellation, export UI and opt-in GPT reference analysis). Basic interactive GLB polygon viewport supports orbit and zoom (software shading, not Blender-grade display).
-- Blender 5.2.3 LTS actual headless execution: **170 mesh objects, 35 bones, 11 animation Actions, 10 solid PBR-node materials**; successful `.blend`, `.glb` and `.fbx` export.
+- Blender 5.2.3 LTS actual headless execution: **at least 170 mesh objects, 39 bones, 26 animation Actions and 10 node-based materials**; successful `.blend`, `.glb` and `.fbx` export.
 - `Pillow` sprite sequence packing to PNG atlas with Clickteam Fusion JSON metadata; verified by unit tests. A true PNG front-view preview is rendered automatically by the generator in the latest codebase; see GitHub Actions for test status.
-- 12/12 local and CI unit tests; Linux true-Blender build, Windows Python Qt startup and Windows PyInstaller bundling confirmed.
+- Unit tests pass in Linux and Windows CI; real Linux Blender generation and Windows Qt / packaged EXE smoke tests pass. Updated run: https://github.com/SakizKazanakis/goshman/actions/runs/40080425782.
 - Optional OpenAI Responses API JSON-schema image analysis with explicit per-session user consent; ComfyUI localhost workflow queue adapter. Live AI inference is not tested or included.
 
 ## Not yet completed
 
 - Reconstruction of user-supplied reference detail is **not achieved**: the current geometry is parametric and simplified, not an accurate crocodile sculpt.
-- Texture images, UV baking, detailed scales/leather/stitching/teeth, advanced mechanical rigging and full emotion/pose library.
+- Texture-image baking and reference-accurate scales, leather, stitching, complete articulated finger mechanics and quality-validated facial acting. The new 26 Actions remain procedural test poses.
 - High-quality PBR/texture mapping in the interactive viewport and direct Fusion project injection. The initial mesh viewer is software-projected, with flat material colors and approximate visibility; PNG import into Clickteam still manual and JSON hotspot metadata is not applied automatically.
-- Verification of all animation clips by rendered animation, final `.exe` on a user's Windows machine, live GPT requests and end-to-end ComfyUI TRELLIS.2 output.
+- Frame-by-frame visual QA for all 26 Actions, consumer-PC Windows installation, live GPT requests and end-to-end ComfyUI TRELLIS.2 output.
 - No bundled Blender binary, no neural model weights, no API keys and no 12 copyrighted/user-supplied PNG images committed into the public repo.
 
 See [docs/STATUS.md](docs/STATUS.md) for an evidence-based phase status matrix.
@@ -60,7 +60,23 @@ Generated output lives in `projects\crocodile\output\`. A complete `.blend`, `.g
 | `goshman/ai.py` | Strict opt-in GPT / OpenAI Responses analysis |
 | `goshman/comfy.py` | Local ComfyUI custom API-workflow connector |
 | `goshman/export.py` | Deterministic PNG atlas and Clickteam metadata |
+| `goshman/quality.py` | Read-only Blender/GLB/PNG structural export validation |
 | `.github/workflows/ci.yml` | Linux Blender 5.2.3 and Windows packaged app tests |
+
+## Structural export audit
+
+Run `python -m goshman.cli audit projects\\crocodile` after generation, or use the GUI's
+**Проверить экспорт** control. It validates reference hashes, nonempty native exports,
+binary glTF 2.0 meshes/skins/animations, preview alpha and sprite sequences. It reports
+`PASS_TECHNICAL` only for structural correctness; it does not assert reference fidelity,
+successful import into Clickteam Fusion or accurate PBR textures in other renderers.
+
+Character height and segmented tail length now affect actual Blender geometry rather
+than merely stored UI parameters. The hat has curved brim geometry and fangs are conical;
+procedural material bump remains Blender-specific until texture baking is implemented.
+GPT reference requests include reference roles; returned parameters require user approval
+before overwriting the existing character specification. Keys can be saved through the
+system keyring.
 
 ## Key safety / redistribution notes
 

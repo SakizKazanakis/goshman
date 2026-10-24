@@ -49,6 +49,7 @@ class Window(QMainWindow):
         self.blender.finished.connect(self.blender_finished)
         self.threads = QThreadPool.globalInstance()
         self._tasks = []
+        self._ai_project_folder = None
         self.setup_ui()
         self.update_ui()
 
@@ -102,12 +103,22 @@ class Window(QMainWindow):
         v.addWidget(atlas)
         open_output=QPushButton("Открыть папку экспорта");open_output.clicked.connect(self.open_output)
         v.addWidget(open_output)
+        qa_button=QPushButton("Проверить экспорт (3D / PNG / анимации)")
+        qa_button.clicked.connect(self.audit_output)
+        v.addWidget(qa_button)
         v.addStretch()
         right.addTab(tab_b,"Генерация / Экспорт")
         ai=QWidget();av=QVBoxLayout(ai)
         av.addWidget(QLabel("GPT анализирует референсы, но не заменяет 3D-геометрию."))
         self.model_id=QLineEdit(os.getenv("GOSHMAN_OPENAI_MODEL","gpt-4.1"))
         av.addWidget(QLabel("ID модели, доступной через API"));av.addWidget(self.model_id)
+        self.api_key_input=QLineEdit()
+        self.api_key_input.setEchoMode(QLineEdit.Password)
+        self.api_key_input.setPlaceholderText("Ключ OpenAI API (сохраняется в защищённом хранилище ОС)")
+        av.addWidget(self.api_key_input)
+        key_button=QPushButton("Сохранить API-ключ")
+        key_button.clicked.connect(self.save_ai_key)
+        av.addWidget(key_button)
         self.consent=QCheckBox("Разрешаю передачу моих референсов в OpenAI для анализа")
         av.addWidget(self.consent)
         ai_btn=QPushButton("Проанализировать референсы");ai_btn.clicked.connect(self.analyze_ai)
@@ -248,22 +259,76 @@ class Window(QMainWindow):
         out.mkdir(exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(out)))
 
+    def audit_output(self):
+        if not self.folder:
+            return self.fail("Проект не открыт")
+        try:
+            from .quality import audit_project
+            report = audit_project(self.folder)
+            self.note("Проверка экспорта: " + report["status"])
+            self.note("GLB: " + json.dumps(report["glb"], ensure_ascii=False))
+            for warning in report["warnings"]:
+                self.note("ПРЕДУПРЕЖДЕНИЕ: " + warning)
+            for error in report["errors"]:
+                self.note("ОШИБКА: " + error)
+            if report["errors"]:
+                QMessageBox.warning(self, "Проверка GOSHMAN", "Найдены ошибки: " + str(len(report["errors"])))
+            else:
+                QMessageBox.information(self, "Проверка GOSHMAN", "Технические проверки пройдены. Визуальное сходство с референсами не подтверждено.")
+        except Exception as exc:
+            self.fail(str(exc))
+
+    def save_ai_key(self):
+        key=self.api_key_input.text().strip()
+        if not key:
+            return self.fail("Введите API-ключ")
+        try:
+            from .ai import save_api_key
+            save_api_key(key)
+            self.api_key_input.clear()
+            self.note("API-ключ сохранён в системном хранилище. В project.json ключ не записывается.")
+        except Exception as exc:
+            self.fail(f"Не удалось сохранить API-ключ: {exc}")
+
     def analyze_ai(self):
         if not self.project:return self.fail("Проект не открыт")
         if not self.consent.isChecked():return self.fail("Подтвердите отправку референсов в OpenAI")
         from .ai import analyze_references
         paths=[self.folder/r.filename for r in self.project.references]
         if not paths:return self.fail("Нет референсов")
-        task=Task(lambda: analyze_references(paths,self.model_id.text().strip(),consent=True))
+        roles=[record.role for record in self.project.references]
+        self._ai_project_folder=self.folder
+        task=Task(lambda: analyze_references(paths,self.model_id.text().strip(),consent=True,roles=roles))
         task.signals.done.connect(self.ai_done);task.signals.fail.connect(self.fail)
         self._tasks.append(task);self.threads.start(task)
         self.note("AI-анализ запущен, ждём проверяемую структуру ответа")
 
     def ai_done(self,result):
-        self.project.spec=result["spec"]
+        if self.folder != self._ai_project_folder or not self.project:
+            self.note("GPT результат получен для другого проекта и не применён.")
+            return
+        proposed=result["spec"]
+        old=self.project.spec
+        changes=[]
+        for field in ("height","head_scale","snout_length","tail_length","eye_scale","armor_detail"):
+            current=getattr(old,field)
+            suggested=getattr(proposed,field)
+            if current != suggested:
+                changes.append(f"{field}: {current} → {suggested}")
+        uncertainties=result.get("uncertainties",[])
+        explanation="\n".join(changes) if changes else "Измеримые параметры не изменятся."
+        if uncertainties:
+            explanation += "\n\nНеопределённости:\n" + "\n".join("• " + str(x) for x in uncertainties)
+        answer=QMessageBox.question(self,"Подтвердить параметры GPT",
+            "Применить предложенные изменения к проекту?\n\n"+explanation,
+            QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if answer != QMessageBox.Yes:
+            self.note("Предложения GPT отклонены, существующие параметры сохранены.")
+            return
+        self.project.spec=proposed
         save_project(self.folder,self.project)
         self.update_ui()
-        self.note("GPT параметры применены. Неопределённости: "+json.dumps(result["uncertainties"],ensure_ascii=False))
+        self.note("GPT параметры применены после подтверждения.")
 
 
 def main():
