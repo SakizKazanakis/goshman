@@ -6,6 +6,7 @@ import json
 from .project import create_project, load_project, import_reference, save_project, verify_references
 from .export import export_atlas
 from .quality import audit_project
+from .reference_views import prepare_turnaround
 from .backend import run_blender
 
 
@@ -27,6 +28,9 @@ def main(argv=None) -> int:
     gen.add_argument("--render", action="store_true")
     gen.add_argument("--no-export", action="store_true")
     gen.add_argument("--size", type=int, default=512)
+    gen.add_argument("--pbr-resolution", type=int, choices=(0,256,512,1024,2048), default=256)
+    extract = sub.add_parser("prepare-views", help="Crop the supplied five-view character reference")
+    extract.add_argument("folder", type=Path)
     audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
     audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
@@ -50,12 +54,15 @@ def main(argv=None) -> int:
             print(json.dumps({"name": pr.name, "references": len(pr.references), "errors": errors}, ensure_ascii=False))
             return 2 if errors else 0
         elif args.action == "generate":
-            result = run_blender(args.folder, args.blender, args.render, not args.no_export, args.size)
+            result = run_blender(args.folder, args.blender, args.render, not args.no_export,
+                                 args.size, pbr_resolution=args.pbr_resolution)
             print(result.stdout)
             print(result.stderr, file=sys.stderr)
             return result.returncode
         elif args.action == "atlas":
             print(json.dumps(export_atlas(args.input_dir, args.output, args.name, args.fps, args.columns), ensure_ascii=False, indent=2))
+        elif args.action == "prepare-views":
+            print(json.dumps(prepare_turnaround(args.folder), ensure_ascii=False, indent=2))
         elif args.action == "audit":
             report = audit_project(args.folder)
             print(json.dumps(report, ensure_ascii=False, indent=2))

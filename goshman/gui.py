@@ -75,6 +75,9 @@ class Window(QMainWindow):
         self.preview.setMinimumSize(310,225); self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setStyleSheet("background: #232a31; color: #aaa; border-radius: 8px;")
         ll.addWidget(self.preview)
+        prep=QPushButton("Подготовить 5 ракурсов")
+        prep.clicked.connect(self.prepare_views)
+        ll.addWidget(prep)
         main.addWidget(left)
         right = QTabWidget(); main.addWidget(right)
         tab_spec = QWidget(); form = QFormLayout(tab_spec)
@@ -95,6 +98,12 @@ class Window(QMainWindow):
         self.render_frames=QCheckBox("Рендерить PNG-анимации (медленно)");v.addWidget(self.render_frames)
         self.frame_size=QSpinBox();self.frame_size.setRange(128,2048);self.frame_size.setValue(512)
         v.addWidget(QLabel("Размер кадра, px"));v.addWidget(self.frame_size)
+        self.pbr_resolution=QComboBox()
+        for label,value in (("Выключено",0),("256 px — тест",256),
+                            ("512 px",512),("1024 px",1024),("2048 px — высокое качество",2048)):
+            self.pbr_resolution.addItem(label,value)
+        self.pbr_resolution.setCurrentIndex(1)
+        v.addWidget(QLabel("UV PBR-текстуры"));v.addWidget(self.pbr_resolution)
         generate=QPushButton("СОЗДАТЬ 3D-МОДЕЛЬ В BLENDER"); generate.clicked.connect(self.generate)
         v.addWidget(generate)
         self.abort_button=QPushButton("Прервать процесс");self.abort_button.clicked.connect(self.abort)
@@ -186,6 +195,17 @@ class Window(QMainWindow):
         img=QPixmap(str(path))
         self.preview.setPixmap(img.scaled(self.preview.size(),Qt.KeepAspectRatio,Qt.SmoothTransformation))
 
+    def prepare_views(self):
+        if not self.folder:
+            return self.fail("Проект не открыт")
+        try:
+            from .reference_views import prepare_turnaround
+            manifest=prepare_turnaround(self.folder)
+            self.note("Подготовлены ракурсы: "+", ".join(manifest["views"].keys()))
+            self.note("Результат сохранён в derived/turnaround; это референсы, не готовая 3D-модель.")
+        except Exception as exc:
+            self.fail(str(exc))
+
     def save_spec(self):
         if not self.project:return self.fail("Проект не открыт")
         try:
@@ -205,7 +225,8 @@ class Window(QMainWindow):
         if self.blender.state()!=QProcess.NotRunning:return self.fail("Blender уже работает")
         try:
             cmd=blender_command(self.folder,self.blender_path.text().strip() or None,
-                                self.render_frames.isChecked(),True,self.frame_size.value())
+                                self.render_frames.isChecked(),True,self.frame_size.value(),
+                                self.pbr_resolution.currentData())
             self._render_after=self.render_frames.isChecked()
             self.blender.start(cmd[0],cmd[1:])
             self.progress.setRange(0,0)

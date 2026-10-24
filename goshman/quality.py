@@ -37,6 +37,13 @@ def inspect_glb(path: Path) -> dict:
         "joints": sum(len(item.get("joints", [])) for item in skins),
         "animations": len(actions),
         "animation_names": [item.get("name", "") for item in actions],
+        "textures": len(doc.get("textures", [])),
+        "images": len(doc.get("images", [])),
+        "normal_maps": sum("normalTexture" in m for m in doc.get("materials", [])),
+        "base_color_maps": sum("baseColorTexture" in m.get("pbrMetallicRoughness",{})
+                               for m in doc.get("materials",[])),
+        "metallic_roughness_maps": sum("metallicRoughnessTexture" in m.get("pbrMetallicRoughness",{})
+                                      for m in doc.get("materials",[])),
     }
 
 
@@ -107,6 +114,37 @@ def audit_project(folder: Path) -> dict:
                 warnings.append("Blender scene and glTF mesh counts differ")
         except (ValueError, OSError, json.JSONDecodeError) as exc:
             errors.append("Build report validation failed: " + str(exc))
+    pbr_summary = None
+    manifest_path = output / "pbr_manifest.json"
+    if manifest_path.is_file():
+        try:
+            pbr_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            resolution = pbr_manifest["resolution"]
+            materials = pbr_manifest["materials"]
+            checked = 0
+            for name, channels in materials.items():
+                if set(channels) != {"base_color", "normal", "roughness", "metallic"}:
+                    errors.append("Incomplete UV PBR channels: " + name)
+                for kind, filename in channels.items():
+                    p = Path(filename)
+                    # Manifest may contain absolute paths; forbid pointing outside project.
+                    if not p.is_absolute():
+                        p = output / p
+                    p = p.resolve()
+                    if not p.is_relative_to(folder):
+                        errors.append("Unsafe PBR image path: " + str(filename))
+                        continue
+                    with Image.open(p) as im:
+                        if im.size != (resolution,resolution):
+                            errors.append("Wrong PBR resolution: " + str(p))
+                    checked += 1
+            pbr_summary={"resolution":resolution,"materials":len(materials),"maps_checked":checked}
+            if glb is not None and (glb["images"] < 10 or glb["normal_maps"] < 1):
+                errors.append("PBR images or normal maps missing from exported GLB")
+        except (ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
+            errors.append("PBR manifest validation failed: " + str(exc))
+    else:
+        warnings.append("No UV PBR map manifest; legacy non-textured build")
     sprite_groups = {}
     sprites = output / "sprites"
     if sprites.is_dir():
@@ -131,6 +169,7 @@ def audit_project(folder: Path) -> dict:
         "references": len(project.references),
         "artifacts_bytes": artifacts,
         "glb": glb, "preview": preview,
-        "blender_report": report, "sprite_groups": sprite_groups,
+        "blender_report": report, "pbr": pbr_summary,
+        "sprite_groups": sprite_groups,
         "errors": errors, "warnings": warnings,
     }

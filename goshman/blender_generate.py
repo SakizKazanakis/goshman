@@ -10,6 +10,8 @@ import math
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 try:
     import bpy
     from mathutils import Vector
@@ -518,11 +520,22 @@ def main():
     parser.add_argument('--size',type=int,default=512)
     parser.add_argument('--render',choices=('0','1'),default='0')
     parser.add_argument('--export',choices=('0','1'),default='1')
+    parser.add_argument('--pbr-resolution',type=int,choices=(0,256,512,1024,2048),default=256)
     args=parser.parse_args(sys.argv[arg+1:])
     folder=Path(args.project).resolve(strict=True)
     raw=json.loads((folder/'project.json').read_text('utf-8'))
     bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
-    count=build(raw['spec']); clips=animate();setup_scene(args.size, float(raw['spec'].get('height', 6.2)))
+    count=build(raw['spec'])
+    if args.pbr_resolution:
+        from pbr_blender import attach_maps
+        maps=attach_maps(M,PARTS,folder/'output',resolution=args.pbr_resolution)
+        manifest={'method':'procedural_uv_texture_synthesis',
+                  'note':'Not Cycles high-poly baking or exact source-image texture projection',
+                  'resolution':args.pbr_resolution,'materials':maps}
+        (folder/'output'/'pbr_manifest.json').write_text(
+            json.dumps(manifest,indent=2),encoding='utf-8')
+    clips=animate()
+    setup_scene(args.size,float(raw['spec'].get('height',6.2)))
     do_exports(folder,args.render=='1',args.export=='1',args.size,clips)
     print('Built geometry objects:', count)
 
