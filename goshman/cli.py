@@ -27,6 +27,7 @@ def main(argv=None) -> int:
     gen.add_argument("--render", action="store_true")
     gen.add_argument("--no-export", action="store_true")
     gen.add_argument("--size", type=int, default=512)
+    gen.add_argument("--pbr-resolution", type=int, choices=(0,256,512,1024,2048), default=256)
     audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
     audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
@@ -50,7 +51,8 @@ def main(argv=None) -> int:
             print(json.dumps({"name": pr.name, "references": len(pr.references), "errors": errors}, ensure_ascii=False))
             return 2 if errors else 0
         elif args.action == "generate":
-            result = run_blender(args.folder, args.blender, args.render, not args.no_export, args.size)
+            result = run_blender(args.folder, args.blender, args.render, not args.no_export,
+                                 args.size, pbr_resolution=args.pbr_resolution)
             print(result.stdout)
             print(result.stderr, file=sys.stderr)
             return result.returncode
