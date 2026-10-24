@@ -63,6 +63,6 @@ def attach_maps(materials: dict, objects: list, output_dir: Path, resolution: in
                 socket={"base_color":"Base Color",
                         "roughness":"Roughness","metallic":"Metallic"}[kind]
                 links.new(node.outputs["Color"],bsdf.inputs[socket])
-            result[name][kind]=str(path)
+            result[name][kind]=str(path.relative_to(output_dir))
         links.new(normal_node.outputs["Normal"],bsdf.inputs["Normal"])
     return result
