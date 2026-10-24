@@ -294,11 +294,11 @@ class Window(QMainWindow):
             if current != suggested:
                 changes.append(f"{field}: {current} → {suggested}")
         uncertainties=result.get("uncertainties",[])
-        explanation="\\n".join(changes) if changes else "Измеримые параметры не изменятся."
+        explanation="\n".join(changes) if changes else "Измеримые параметры не изменятся."
         if uncertainties:
-            explanation += "\\n\\nНеопределённости:\\n" + "\\n".join("• " + str(x) for x in uncertainties)
+            explanation += "\n\nНеопределённости:\n" + "\n".join("• " + str(x) for x in uncertainties)
         answer=QMessageBox.question(self,"Подтвердить параметры GPT",
-            "Применить предложенные изменения к проекту?\\n\\n"+explanation,
+            "Применить предложенные изменения к проекту?\n\n"+explanation,
             QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
         if answer != QMessageBox.Yes:
             self.note("Предложения GPT отклонены, существующие параметры сохранены.")
