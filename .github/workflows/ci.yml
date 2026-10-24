@@ -2,7 +2,7 @@ name: GOSHMAN CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/pbr-uv-textures-and-export-validation-20261024]
   workflow_dispatch:
 
 concurrency:
@@ -36,14 +36,17 @@ jobs:
         run: |
           python -m goshman.cli new ci_project
           python -c "import json; from pathlib import Path; p=Path('ci_project/project.json'); d=json.loads(p.read_text()); d['spec']['height']=7.44; d['spec']['tail_length']=3.6; p.write_text(json.dumps(d))"
-          blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python goshman/blender_generate.py -- --project ci_project --render 0 --export 1
+          blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python goshman/blender_generate.py -- --project ci_project --render 0 --export 1 --pbr-resolution 256
           test -s ci_project/output/crocodile_cowboy.blend
           test -s ci_project/output/crocodile_cowboy.glb
           test -s ci_project/output/crocodile_cowboy.fbx
           test -s ci_project/output/preview_front.png
+          test -s ci_project/output/pbr_manifest.json
+          test "$(find ci_project/output/pbr -type f -name '*.png' | wc -l)" -eq 40
+          python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/pbr_manifest.json').read_text()); assert d['resolution']==256; assert len(d['materials'])==10; assert all(len(v)==4 for v in d['materials'].values())"
           python -c "from PIL import Image; im=Image.open('ci_project/output/preview_front.png'); assert im.mode=='RGBA'; assert im.size==(384,384); im.verify()"
           python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/build_report.json').read_text()); assert d['mesh_objects']>=170; assert d['bones']>=39; assert d['actions']>=25; assert abs(d['overall_scale']-1.2)<.0001; assert abs(d['tail_tip_y']-3.69)<.001, d"
-          python -c "import json,struct; from pathlib import Path; b=Path('ci_project/output/crocodile_cowboy.glb').read_bytes(); assert b[:4]==b'glTF'; n=struct.unpack_from('<I',b,12)[0]; doc=json.loads(b[20:20+n]); assert len(doc.get('animations',[]))>=25, len(doc.get('animations',[]))"
+          python -c "import json,struct; from pathlib import Path; b=Path('ci_project/output/crocodile_cowboy.glb').read_bytes(); assert b[:4]==b'glTF'; n=struct.unpack_from('<I',b,12)[0]; doc=json.loads(b[20:20+n]); assert len(doc.get('animations',[]))>=25, len(doc.get('animations',[])); assert len(doc.get('images',[]))>=10, len(doc.get('images',[])); assert any('normalTexture' in m for m in doc.get('materials',[])), 'normal maps absent'"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -67,7 +70,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -c "from PySide6.QtCore import QTimer; from PySide6.QtWidgets import QApplication; from goshman.gui import Window; app=QApplication([]); w=Window(); QTimer.singleShot(500,app.quit); app.exec()"
       - name: Build Windows folder application
-        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" goshman_app.py
+        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" --add-data "goshman/pbr_blender.py;goshman" --add-data "goshman/pbr_maps.py;goshman" goshman_app.py
       - name: Smoke-test packaged Windows EXE
         env:
           QT_QPA_PLATFORM: offscreen
