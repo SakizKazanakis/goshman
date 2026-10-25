@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install Python package and test dependencies
-        run: python -m pip install -e '.[test]'
+        run: python -m pip install -e '.[test,vision]'
       - name: Unit tests
         run: python -m pytest -q
       - name: Download verified official Blender 5.2.3 LTS

@@ -67,6 +67,12 @@ def main(argv=None) -> int:
     compare.add_argument("folder",type=Path)
     compare.add_argument("renders",type=Path)
     compare.add_argument("output",type=Path)
+    hull = sub.add_parser("visual-hull", help="Experimental CPU silhouette-derived GLB; NOT AI inference")
+    hull.add_argument("folder",type=Path)
+    hull.add_argument("output",type=Path)
+    hull.add_argument("--grid-x",type=int,default=100)
+    hull.add_argument("--grid-y",type=int,default=110)
+    hull.add_argument("--grid-z",type=int,default=192)
     audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
     audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
@@ -132,6 +138,14 @@ def main(argv=None) -> int:
         elif args.action == "compare-views":
             print(json.dumps(create_view_comparison(args.folder,args.renders,args.output),
                              ensure_ascii=False,indent=2))
+        elif args.action == "visual-hull":
+            try:
+                from .visual_hull import build_visual_hull
+            except ImportError as exc:
+                raise RuntimeError("Image-derived visual hull needs: pip install goshman[vision]") from exc
+            print(json.dumps(build_visual_hull(args.folder,args.output,
+                grid_x=args.grid_x,grid_y=args.grid_y,grid_z=args.grid_z),
+                ensure_ascii=False,indent=2))
         elif args.action == "audit":
             report = audit_project(args.folder)
             print(json.dumps(report, ensure_ascii=False, indent=2))
