@@ -7,6 +7,7 @@ from .project import create_project, load_project, import_reference, save_projec
 from .export import export_atlas
 from .quality import audit_project
 from .reference_views import prepare_turnaround
+from .reference_preflight import audit_multiview_inputs
 from .reconstruction import run_multiview_job
 from .backend import run_blender, import_external_glb, run_cycles_bake
 
@@ -52,6 +53,8 @@ def main(argv=None) -> int:
     bake.add_argument("--output",type=Path,required=True)
     bake.add_argument("--resolution",type=int,choices=(64,128,256,512,1024,2048,4096),default=1024)
     bake.add_argument("--blender")
+    preflight = sub.add_parser("preflight-views", help="Validate four existing private AI reference views")
+    preflight.add_argument("folder",type=Path)
     audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
     audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
@@ -103,6 +106,10 @@ def main(argv=None) -> int:
             print(result.stdout)
             print(result.stderr,file=sys.stderr)
             return result.returncode
+        elif args.action == "preflight-views":
+            report = audit_multiview_inputs(args.folder)
+            print(json.dumps(report,ensure_ascii=False,indent=2))
+            return 0 if report["status"]=="PASS_PREFLIGHT" else 2
         elif args.action == "audit":
             report = audit_project(args.folder)
             print(json.dumps(report, ensure_ascii=False, indent=2))
