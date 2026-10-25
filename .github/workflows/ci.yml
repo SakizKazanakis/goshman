@@ -52,6 +52,16 @@ jobs:
           blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python goshman/blender_import_ai.py -- --source ci_project/output/crocodile_cowboy.glb --destination ci_project/output/imported_character.blend --height 6.2
           test -s ci_project/output/imported_character.blend
           python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/imported_character.json').read_text()); assert d['mesh_objects']>=150 and d['faces']>1000; assert not d['visual_fidelity_verified']"
+      - name: Bake actual high-poly detail onto low-poly UVs with Cycles CPU
+        run: |
+          mkdir -p ci_project/output/cycles_bake_test
+          blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python scripts/ci_blender_bake.py -- ci_project/output/cycles_bake_test
+          test -s ci_project/output/cycles_bake_test/normal.png
+          test -s ci_project/output/cycles_bake_test/roughness.png
+          test -s ci_project/output/cycles_bake_test/metallic.png
+          test -s ci_project/output/cycles_bake_test/base_color.png
+          python -c "import json; from pathlib import Path; r=json.loads(Path('ci_project/output/cycles_bake_test/bake_report.json').read_text()); assert r['method']=='selected_to_active' and r['source_faces']>r['target_faces']*5"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
