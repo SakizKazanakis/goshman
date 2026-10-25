@@ -43,6 +43,8 @@ jobs:
           test -s ci_project/output/preview_front.png
           test -s ci_project/output/pbr_manifest.json
           test "$(find ci_project/output/pbr -type f -name '*.png' | wc -l)" -eq 40
+          python -c "from PIL import Image,ImageStat; from pathlib import Path; root=Path('ci_project/output/pbr'); a=Image.open(root/'scales_base_color.png').convert('RGB'); b=Image.open(root/'belly_base_color.png').convert('RGB'); n=Image.open(root/'scales_normal.png').convert('RGB'); r=Image.open(root/'scales_roughness.png').convert('RGB'); am=ImageStat.Stat(a).mean; bm=ImageStat.Stat(b).mean; nm=ImageStat.Stat(n).mean; rm=ImageStat.Stat(r).mean; assert am[1]>35 and am[1]>am[0] and am[1]>am[2],am; assert bm[0]>70 and bm[1]>50,bm; assert nm[2]>190,nm; assert 60<rm[0]<240,rm; print('PBR NONBLACK REAL PIXEL PASS',am,bm,nm,rm)"
+
           python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/pbr_manifest.json').read_text()); assert d['resolution']==256; assert len(d['materials'])==10; assert all(len(v)==4 for v in d['materials'].values())"
           python -c "from PIL import Image; im=Image.open('ci_project/output/preview_front.png'); assert im.mode=='RGBA'; assert im.size==(384,384); im.verify()"
           python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/build_report.json').read_text()); assert d['mesh_objects']>=170; assert d['bones']>=39; assert d['actions']>=25; assert abs(d['overall_scale']-1.2)<.0001; assert abs(d['tail_tip_y']-3.69)<.001, d"
