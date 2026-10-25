@@ -133,6 +133,24 @@ class Window(QMainWindow):
         ai_btn=QPushButton("Проанализировать референсы");ai_btn.clicked.connect(self.analyze_ai)
         av.addWidget(ai_btn); av.addStretch()
         right.addTab(ai,"GPT")
+        neural=QWidget();nv=QVBoxLayout(neural)
+        nv.addWidget(QLabel("Multi-view AI → настоящий GLB (платный сервис, отдельное согласие)"))
+        self.neural_provider=QComboBox()
+        self.neural_provider.addItems(["meshy","tripo"])
+        nv.addWidget(QLabel("AI-провайдер"));nv.addWidget(self.neural_provider)
+        self.neural_api_key=QLineEdit()
+        self.neural_api_key.setEchoMode(QLineEdit.Password)
+        self.neural_api_key.setPlaceholderText("API-ключ провайдера (не сохраняется в проекте)")
+        nv.addWidget(self.neural_api_key)
+        self.allow_neural_upload=QCheckBox("Разрешаю передачу 4 приватных ракурсов выбранному провайдеру")
+        self.allow_neural_cost=QCheckBox("Разрешаю платную генерацию в аккаунте провайдера")
+        nv.addWidget(self.allow_neural_upload);nv.addWidget(self.allow_neural_cost)
+        neural_btn=QPushButton("СОЗДАТЬ НАСТОЯЩУЮ 3D-МОДЕЛЬ ЧЕРЕЗ AI")
+        neural_btn.clicked.connect(self.generate_neural)
+        nv.addWidget(neural_btn)
+        nv.addWidget(QLabel("После завершения GLB проверяется автоматически; точность по референсам и риг ещё требуют QA."))
+        nv.addStretch()
+        right.addTab(neural,"AI → 3D")
         preview_tab=QWidget();pv=QVBoxLayout(preview_tab)
         self.viewer=GLBPreview()
         pv.addWidget(self.viewer,1)
@@ -298,6 +316,47 @@ class Window(QMainWindow):
                 QMessageBox.information(self, "Проверка GOSHMAN", "Технические проверки пройдены. Визуальное сходство с референсами не подтверждено.")
         except Exception as exc:
             self.fail(str(exc))
+
+    def generate_neural(self):
+        if not self.folder or not self.project:
+            return self.fail("Сначала откройте проект")
+        if not self.allow_neural_upload.isChecked() or not self.allow_neural_cost.isChecked():
+            return self.fail("Требуются отдельные разрешения на передачу референсов и платный AI-запрос")
+        provider=self.neural_provider.currentText()
+        key=self.neural_api_key.text().strip() or None
+        decision=QMessageBox.question(self,"Подтверждение платного AI-задания",
+            "Передать четыре вида крокодила сервису "+provider+
+            " и запустить платное создание 3D-модели? Расходы определяются тарифом провайдера.",
+            QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if decision != QMessageBox.Yes:
+            return
+        from .reconstruction import run_multiview_job
+        root=self.folder
+        self.neural_api_key.clear()
+        task=Task(lambda: run_multiview_job(root,provider,
+            approve_upload=True,approve_billing=True,api_key=key))
+        task.signals.done.connect(lambda report:self.neural_done(root,provider,report))
+        task.signals.fail.connect(self.fail)
+        self._tasks.append(task)
+        self.threads.start(task)
+        self.note("AI-генерация запущена. Результат будет проверен как реальный GLB.")
+
+    def neural_done(self,root,provider,report):
+        self.note("AI "+provider+": "+report.get("status","UNKNOWN"))
+        if report.get("reason"):
+            self.note(report["reason"])
+        if report.get("status") != "PASS_TECHNICAL":
+            return
+        if self.folder != root:
+            self.note("Новый проект открыт; результат сохранён только в исходном проекте.")
+            return
+        job=report.get("input_sha256","")[:16]
+        path=root/"output"/"reconstruction"/provider/job/"model.glb"
+        try:
+            result=self.viewer.load_glb(path)
+            self.note("Настоящий GLB загружен: "+str(result.get("mesh_nodes",0))+" меш-узлов.")
+        except Exception as exc:
+            self.fail("Проверенный AI GLB есть на диске, но GUI просмотр не удался: "+str(exc))
 
     def save_ai_key(self):
         key=self.api_key_input.text().strip()
