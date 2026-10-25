@@ -86,3 +86,25 @@ def run_cycles_bake(scene: Path, high: str, low: str, output: Path, *,
          "--output",str(output),"--resolution",str(resolution)]
     return subprocess.run(cmd,capture_output=True,text=True,timeout=timeout,
                           shell=False,check=False)
+
+
+
+def render_reference_views(model: Path, output: Path, *,
+                           blender_path: str | None = None,
+                           width: int = 320, height: int = 640,
+                           samples: int = 4,
+                           timeout: int = 1800) -> subprocess.CompletedProcess:
+    """Render 5 orthographic Blender images for independent reference QA."""
+    model=Path(model).resolve(strict=True)
+    output=Path(output).resolve()
+    if model.suffix.lower() not in (".glb",".blend"):
+        raise ValueError("Render target must be actual GLB or Blender scene")
+    if not(128<=width<=2048 and 128<=height<=4096 and 1<=samples<=128):
+        raise ValueError("Invalid render size or samples")
+    script=Path(__file__).with_name("blender_render_views.py").resolve()
+    cmd=[str(find_blender(blender_path)),"--background","--factory-startup",
+         "--python-exit-code","31","--python",str(script),"--",
+         "--model",str(model),"--output",str(output),
+         "--width",str(width),"--height",str(height),"--samples",str(samples)]
+    return subprocess.run(cmd,capture_output=True,text=True,timeout=timeout,
+                          shell=False,check=False)

@@ -5,8 +5,33 @@ a high-poly Cycles normal bake or photograph-driven texture reconstruction.
 """
 from __future__ import annotations
 from pathlib import Path
+import struct
+import zlib
 import bpy
+import numpy as np
 from pbr_maps import make_maps
+
+
+def _save_rgba_png(path: Path, pixels: np.ndarray) -> None:
+    """Write the actual deterministic RGBA data; never rely on Blender's generated image buffer.
+
+    Blender 5.2.3 was observed exporting fully black PNGs from Image.pixels
+    foreach_set followed by save. A direct PNG writer and reload avoids it.
+    """
+    if pixels.ndim != 3 or pixels.shape[2] != 4:
+        raise ValueError("Expected four-channel RGBA image")
+    h, w, _ = pixels.shape
+    if not (32 <= w <= 8192 and 32 <= h <= 8192):
+        raise ValueError("Invalid PBR dimensions")
+    data = np.rint(np.clip(pixels, 0, 1) * 255).astype(np.uint8)
+    raw = b"".join(b"\x00" + data[y].tobytes() for y in range(h - 1, -1, -1))
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(
+            ">I", zlib.crc32(kind + body) & 0xffffffff)
+    header = b"\x89PNG\r\n\x1a\n"
+    header += chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+    path.write_bytes(header + chunk(b"IDAT", zlib.compress(raw, level=6)) + chunk(b"IEND", b""))
+
 
 def ensure_uv(obj):
     if obj.type != "MESH" or obj.data.uv_layers:
@@ -43,16 +68,14 @@ def attach_maps(materials: dict, objects: list, output_dir: Path, resolution: in
         normal_node.inputs["Strength"].default_value=1.0
         result[name]={}
         for kind,pixels in channels.items():
-            image=bpy.data.images.new(f"GOSHMAN_{name}_{kind}",
-                 width=resolution,height=resolution,alpha=True)
-            image.pixels.foreach_set(pixels.ravel())
-            image.colorspace_settings.name="sRGB" if kind=="base_color" else "Non-Color"
-            image.file_format="PNG"
             path=texture_dir/f"{name.lower()}_{kind}.png"
-            image.filepath_raw=str(path)
-            image.save()
-            if not path.is_file() or path.stat().st_size==0:
+            _save_rgba_png(path,pixels)
+            if not path.is_file() or path.stat().st_size < 100:
                 raise RuntimeError(f"Failed writing texture map: {path}")
+            # Load verified file pixels into nodes so Blender and GLB see the same data.
+            image=bpy.data.images.load(str(path),check_existing=False)
+            image.name=f"GOSHMAN_{name}_{kind}"
+            image.colorspace_settings.name="sRGB" if kind=="base_color" else "Non-Color"
             image.pack()
             node=nodes.new("ShaderNodeTexImage")
             node.image=image

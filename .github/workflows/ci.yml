@@ -43,6 +43,8 @@ jobs:
           test -s ci_project/output/preview_front.png
           test -s ci_project/output/pbr_manifest.json
           test "$(find ci_project/output/pbr -type f -name '*.png' | wc -l)" -eq 40
+          python -c "from PIL import Image,ImageStat; from pathlib import Path; root=Path('ci_project/output/pbr'); a=Image.open(root/'scales_base_color.png').convert('RGB'); b=Image.open(root/'belly_base_color.png').convert('RGB'); n=Image.open(root/'scales_normal.png').convert('RGB'); r=Image.open(root/'scales_roughness.png').convert('RGB'); am=ImageStat.Stat(a).mean; bm=ImageStat.Stat(b).mean; nm=ImageStat.Stat(n).mean; rm=ImageStat.Stat(r).mean; assert am[1]>35 and am[1]>am[0] and am[1]>am[2],am; assert bm[0]>70 and bm[1]>50,bm; assert nm[2]>190,nm; assert 60<rm[0]<240,rm; print('PBR NONBLACK REAL PIXEL PASS',am,bm,nm,rm)"
+
           python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/pbr_manifest.json').read_text()); assert d['resolution']==256; assert len(d['materials'])==10; assert all(len(v)==4 for v in d['materials'].values())"
           python -c "from PIL import Image; im=Image.open('ci_project/output/preview_front.png'); assert im.mode=='RGBA'; assert im.size==(384,384); im.verify()"
           python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/build_report.json').read_text()); assert d['mesh_objects']>=170; assert d['bones']>=39; assert d['actions']>=25; assert abs(d['overall_scale']-1.2)<.0001; assert abs(d['tail_tip_y']-3.69)<.001, d"
@@ -61,6 +63,12 @@ jobs:
           test -s ci_project/output/cycles_bake_test/metallic.png
           test -s ci_project/output/cycles_bake_test/base_color.png
           python -c "import json; from pathlib import Path; r=json.loads(Path('ci_project/output/cycles_bake_test/bake_report.json').read_text()); assert r['method']=='selected_to_active' and r['source_faces']>r['target_faces']*5"
+
+      - name: Render five actual GLB views for visual acceptance
+        run: |
+          blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python goshman/blender_render_views.py -- --model ci_project/output/crocodile_cowboy.glb --output ci_project/output/qa_views --width 128 --height 256 --samples 1
+          python -c "from pathlib import Path; import json; p=Path('ci_project/output/qa_views'); d=json.loads((p/'render_manifest.json').read_text()); assert d['status']=='PASS_RENDER_TECHNICAL'; assert set(d['views'])=={'front','left','back','right','three_quarter'}; assert all((p/(r+'.png')).stat().st_size>100 for r in d['views'])"
+          python -c "from PIL import Image; import numpy as np; a=np.asarray(Image.open('ci_project/output/qa_views/front.png').convert('RGBA')); v=a[a[:,:,3]>150,:3]; assert len(v)>800, len(v); assert v.mean()>35 and v.max()>120, (v.mean(),v.max()); print('RENDER REAL COLOR PASS',v.mean(axis=0))"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -85,7 +93,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -c "from PySide6.QtCore import QTimer; from PySide6.QtWidgets import QApplication; from goshman.gui import Window; app=QApplication([]); w=Window(); QTimer.singleShot(500,app.quit); app.exec()"
       - name: Build Windows folder application
-        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" --add-data "goshman/pbr_blender.py;goshman" --add-data "goshman/pbr_maps.py;goshman" --add-data "goshman/blender_import_ai.py;goshman" --add-data "goshman/blender_bake.py;goshman" goshman_app.py
+        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" --add-data "goshman/pbr_blender.py;goshman" --add-data "goshman/pbr_maps.py;goshman" --add-data "goshman/blender_import_ai.py;goshman" --add-data "goshman/blender_bake.py;goshman" --add-data "goshman/blender_render_views.py;goshman" goshman_app.py
       - name: Smoke-test packaged Windows EXE
         env:
           QT_QPA_PLATFORM: offscreen

@@ -9,7 +9,8 @@ from .quality import audit_project
 from .reference_views import prepare_turnaround
 from .reference_preflight import audit_multiview_inputs
 from .reconstruction import run_multiview_job
-from .backend import run_blender, import_external_glb, run_cycles_bake
+from .backend import run_blender, import_external_glb, run_cycles_bake, render_reference_views
+from .visual_compare import create_view_comparison
 
 
 def main(argv=None) -> int:
@@ -55,6 +56,17 @@ def main(argv=None) -> int:
     bake.add_argument("--blender")
     preflight = sub.add_parser("preflight-views", help="Validate four existing private AI reference views")
     preflight.add_argument("folder",type=Path)
+    camera = sub.add_parser("render-views",help="Render real GLB/BLEND from five fixed Blender cameras")
+    camera.add_argument("model",type=Path)
+    camera.add_argument("output",type=Path)
+    camera.add_argument("--blender")
+    camera.add_argument("--width",type=int,default=320)
+    camera.add_argument("--height",type=int,default=640)
+    camera.add_argument("--samples",type=int,default=4)
+    compare = sub.add_parser("compare-views",help="Build original vs. rendered side-by-side 5-view QA contact")
+    compare.add_argument("folder",type=Path)
+    compare.add_argument("renders",type=Path)
+    compare.add_argument("output",type=Path)
     audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
     audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
@@ -110,6 +122,16 @@ def main(argv=None) -> int:
             report = audit_multiview_inputs(args.folder)
             print(json.dumps(report,ensure_ascii=False,indent=2))
             return 0 if report["status"]=="PASS_PREFLIGHT" else 2
+        elif args.action == "render-views":
+            result=render_reference_views(args.model,args.output,
+                    blender_path=args.blender,width=args.width,height=args.height,
+                    samples=args.samples)
+            print(result.stdout)
+            print(result.stderr,file=sys.stderr)
+            return result.returncode
+        elif args.action == "compare-views":
+            print(json.dumps(create_view_comparison(args.folder,args.renders,args.output),
+                             ensure_ascii=False,indent=2))
         elif args.action == "audit":
             report = audit_project(args.folder)
             print(json.dumps(report, ensure_ascii=False, indent=2))

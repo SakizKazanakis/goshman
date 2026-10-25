@@ -154,6 +154,9 @@ class Window(QMainWindow):
         self.import_ai_btn=QPushButton("Импортировать AI GLB в редактируемый Blender-проект")
         self.import_ai_btn.clicked.connect(self.import_ai_glb)
         nv.addWidget(self.import_ai_btn)
+        compare_button=QPushButton("Сравнить 3D-модель с пятью исходными ракурсами")
+        compare_button.clicked.connect(self.compare_ai_model)
+        nv.addWidget(compare_button)
         nv.addWidget(QLabel("После завершения GLB проверяется автоматически; точность по референсам и риг ещё требуют QA."))
         nv.addStretch()
         right.addTab(neural,"AI → 3D")
@@ -322,6 +325,57 @@ class Window(QMainWindow):
                 QMessageBox.information(self, "Проверка GOSHMAN", "Технические проверки пройдены. Визуальное сходство с референсами не подтверждено.")
         except Exception as exc:
             self.fail(str(exc))
+
+    def compare_ai_model(self):
+        if not self.folder or not self.project:
+            return self.fail("Проект не открыт")
+        original,_=QFileDialog.getOpenFileName(self,
+            "Выберите GLB для независимой визуальной проверки",
+            str(self.folder/"output"/"reconstruction"),
+            "GLB Models (*.glb)")
+        if not original:
+            return
+        try:
+            from .quality import inspect_glb
+            from .backend import find_blender, render_reference_views
+            from .project import sha256_file
+            from .visual_compare import create_view_comparison
+            source=Path(original).resolve(strict=True)
+            if inspect_glb(source)["meshes"]<1:
+                raise ValueError("В выбранном GLB нет полигональной сетки")
+            root=self.folder
+            digest=sha256_file(source)[:16]
+            output=root/"output"/"qa"/digest
+            blender_path=str(find_blender(self.blender_path.text().strip() or None))
+            def operation():
+                views=output/"views"
+                response=render_reference_views(source,views,
+                    blender_path=blender_path,width=320,height=640,samples=4)
+                if response.returncode:
+                    raise RuntimeError("Рендер пяти ракурсов завершился с ошибкой: "+
+                        response.stderr[-1400:])
+                target=output/"comparison.png"
+                record=create_view_comparison(root,views,target)
+                return {"project":str(root),"contact":str(target),"report":record}
+            task=Task(operation)
+            task.signals.done.connect(self.compare_ai_done)
+            task.signals.fail.connect(self.fail)
+            self._tasks.append(task)
+            self.threads.start(task)
+            self.note("Выполняется рендеринг пяти видов и независимая сравнительная проверка")
+        except Exception as exc:
+            self.fail(str(exc))
+
+    def compare_ai_done(self,result):
+        image=Path(result["contact"])
+        self.note("Лист сравнения сохранён: "+str(image))
+        self.note("ВНИМАНИЕ: визуальное сходство не подтверждено автоматически.")
+        if self.folder is None or str(self.folder)!=result["project"]:
+            return
+        if image.is_file():
+            preview=QPixmap(str(image))
+            self.preview.setPixmap(preview.scaled(self.preview.size(),
+                                    Qt.KeepAspectRatio,Qt.SmoothTransformation))
 
     def audit_ai_views(self):
         if not self.folder:
