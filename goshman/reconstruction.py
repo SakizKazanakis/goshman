@@ -222,8 +222,16 @@ def run_multiview_job(folder: Path, provider: str, *, approve_upload: bool = Fal
     result_dir = folder / "output" / "reconstruction" / provider / digest[:16]
     result_dir.mkdir(parents=True, exist_ok=True)
     state_path = result_dir / "job.json"
-    state = {"provider": provider, "input_sha256": digest, "status": "PREFLIGHT",
-             "view_roles": list(VIEWS), "actual_api_test": False}
+    # Persisted remote tasks must be resumed, not silently resubmitted for payment.
+    cached = json.loads(state_path.read_text(encoding="utf-8")) if state_path.is_file() else {}
+    if cached and cached.get("input_sha256") != digest:
+        raise ReconstructionError("Input/reference version changed during reconstruction")
+    if cached.get("status") == "PASS_TECHNICAL":
+        artifact = result_dir / "model.glb"
+        if artifact.is_file() and cached.get("artifact", {}).get("sha256") == hashlib.sha256(artifact.read_bytes()).hexdigest():
+            return cached
+    state = cached or {"provider": provider, "input_sha256": digest, "status": "PREFLIGHT",
+                        "view_roles": list(VIEWS), "actual_api_test": False}
     atomic_json(state_path, state)
     if not approve_upload or not approve_billing:
         state["status"] = "BLOCKED"
@@ -235,8 +243,7 @@ def run_multiview_job(folder: Path, provider: str, *, approve_upload: bool = Fal
         state["reason"] = "No authorized provider API credential"
         atomic_json(state_path, state)
         return state
-    previous = json.loads(state_path.read_text(encoding="utf-8"))
-    task_id = previous.get("task_id")
+    task_id = state.get("task_id")
     if task_id is None:
         task_id = client.submit(views, allow_image_upload=True, allow_paid_generation=True)
         state.update({"status": "RUNNING", "task_id": task_id, "actual_api_test": True})
