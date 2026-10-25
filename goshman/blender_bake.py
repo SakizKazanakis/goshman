@@ -153,3 +153,30 @@ def bake_pair(high, low, output: Path, *, resolution: int = 1024,
                 nt.links.new(old_source,output_node.inputs["Surface"])
         high.select_set(False)
         low.select_set(False)
+
+
+
+def main() -> None:
+    """Launch through blender --background --python goshman/blender_bake.py -- ..."""
+    import argparse
+    import sys
+    args = sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--scene",type=Path,required=True)
+    parser.add_argument("--high",required=True,help="Existing high-poly mesh object name")
+    parser.add_argument("--low",required=True,help="Existing low-poly mesh object name")
+    parser.add_argument("--output",type=Path,required=True)
+    parser.add_argument("--resolution",type=int,default=1024)
+    x=parser.parse_args(args)
+    bpy.ops.wm.open_mainfile(filepath=str(x.scene.resolve(strict=True)))
+    high=bpy.data.objects.get(x.high)
+    low=bpy.data.objects.get(x.low)
+    if high is None or low is None:
+        raise ValueError("Named high/low source objects not found inside the Blender scene")
+    report=bake_pair(high,low,x.output,resolution=x.resolution)
+    bpy.ops.wm.save_as_mainfile(filepath=str(x.output.resolve()/"baked_pair.blend"))
+    print(json.dumps(report,indent=2))
+
+
+if __name__ == "__main__":
+    main()
