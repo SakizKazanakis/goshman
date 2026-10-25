@@ -2,7 +2,7 @@ name: GOSHMAN CI
 
 on:
   push:
-    branches: [main, feature/v3-reconstruction-pipeline-20261025]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
