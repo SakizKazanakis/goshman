@@ -13,7 +13,7 @@ import pytest
 from goshman.project import create_project, import_reference
 from goshman.reconstruction import (
     MultiViewProvider, ReconstructionError, load_views, run_multiview_job,
-    _approved_host,
+    _approved_host, _exclusive_job_lock,
 )
 
 
@@ -162,3 +162,13 @@ def test_reference_mutation_refused(refs):
     entry.write_bytes(b"tampered")
     with pytest.raises(ReconstructionError):
         load_views(folder)
+
+
+def test_second_paid_job_blocked_by_os_file_lock(tmp_path):
+    path=tmp_path/"same_task.lock"
+    with _exclusive_job_lock(path):
+        with pytest.raises(ReconstructionError, match="already running"):
+            with _exclusive_job_lock(path):
+                pass
+    with _exclusive_job_lock(path):
+        pass
