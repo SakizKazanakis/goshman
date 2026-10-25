@@ -7,7 +7,8 @@ from .project import create_project, load_project, import_reference, save_projec
 from .export import export_atlas
 from .quality import audit_project
 from .reference_views import prepare_turnaround
-from .backend import run_blender
+from .reconstruction import run_multiview_job
+from .backend import run_blender, import_external_glb, run_cycles_bake
 
 
 def main(argv=None) -> int:
@@ -31,6 +32,26 @@ def main(argv=None) -> int:
     gen.add_argument("--pbr-resolution", type=int, choices=(0,256,512,1024,2048), default=256)
     extract = sub.add_parser("prepare-views", help="Crop the supplied five-view character reference")
     extract.add_argument("folder", type=Path)
+    reconstruct = sub.add_parser("reconstruct", help="Opt-in neural multiview 3D mesh job")
+    reconstruct.add_argument("folder", type=Path)
+    reconstruct.add_argument("--provider", choices=("meshy","tripo"), required=True)
+    reconstruct.add_argument("--approve-upload", action="store_true",
+                             help="Explicitly approve transmitting the four private views to the provider")
+    reconstruct.add_argument("--approve-billing", action="store_true",
+                             help="Explicitly approve the provider's paid generation operation")
+    reconstruct.add_argument("--timeout", type=int, default=900)
+    ai_import = sub.add_parser("import-ai", help="Convert an actual external GLB to editable .blend")
+    ai_import.add_argument("source", type=Path)
+    ai_import.add_argument("destination", type=Path)
+    ai_import.add_argument("--height", type=float, default=6.2)
+    ai_import.add_argument("--blender")
+    bake = sub.add_parser("bake", help="Actual Cycles source-high-to-low texture bake")
+    bake.add_argument("--scene",type=Path,required=True)
+    bake.add_argument("--high",required=True)
+    bake.add_argument("--low",required=True)
+    bake.add_argument("--output",type=Path,required=True)
+    bake.add_argument("--resolution",type=int,choices=(64,128,256,512,1024,2048,4096),default=1024)
+    bake.add_argument("--blender")
     audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
     audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
@@ -63,6 +84,25 @@ def main(argv=None) -> int:
             print(json.dumps(export_atlas(args.input_dir, args.output, args.name, args.fps, args.columns), ensure_ascii=False, indent=2))
         elif args.action == "prepare-views":
             print(json.dumps(prepare_turnaround(args.folder), ensure_ascii=False, indent=2))
+        elif args.action == "reconstruct":
+            state = run_multiview_job(args.folder, args.provider,
+                 approve_upload=args.approve_upload,
+                 approve_billing=args.approve_billing,
+                 timeout_seconds=args.timeout)
+            print(json.dumps(state, ensure_ascii=False, indent=2))
+            return 0 if state["status"] == "PASS_TECHNICAL" else 2
+        elif args.action == "import-ai":
+            result = import_external_glb(args.source, args.destination,
+                                        blender_path=args.blender, height=args.height)
+            print(result.stdout)
+            print(result.stderr, file=sys.stderr)
+            return result.returncode
+        elif args.action == "bake":
+            result=run_cycles_bake(args.scene,args.high,args.low,args.output,
+                resolution=args.resolution,blender_path=args.blender)
+            print(result.stdout)
+            print(result.stderr,file=sys.stderr)
+            return result.returncode
         elif args.action == "audit":
             report = audit_project(args.folder)
             print(json.dumps(report, ensure_ascii=False, indent=2))

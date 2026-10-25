@@ -1,6 +1,7 @@
 """Extract the five views from GOSHMAN's supplied 1491x1055 turnaround sheet.
 
-This is provenance-preserving cropping, NOT 3D reconstruction, calibration or
+This is provenance-preserving cropping including the full boot silhouette,
+NOT 3D reconstruction, calibration or
 background segmentation. The original reference remains unmodified.
 """
 from __future__ import annotations
@@ -11,11 +12,11 @@ from PIL import Image
 from .project import load_project, verify_references, atomic_json
 
 PANEL_BOXES = {
-    "front": (8, 50, 305, 622),
-    "left_profile": (307, 50, 608, 622),
-    "back": (611, 50, 902, 622),
-    "right_profile": (904, 50, 1193, 622),
-    "three_quarter": (1195, 50, 1486, 622),
+    "front": (8, 50, 305, 652),
+    "left_profile": (307, 50, 608, 652),
+    "back": (611, 50, 902, 652),
+    "right_profile": (904, 50, 1193, 652),
+    "three_quarter": (1195, 50, 1486, 652),
 }
 SOURCE_SIZE=(1491,1055)
 
