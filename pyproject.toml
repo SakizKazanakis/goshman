@@ -15,6 +15,7 @@ dependencies = ["Pillow>=10,<13", "pydantic>=2,<3", "requests>=2.32,<3"]
 gui = ["PySide6>=6.8,<7"]
 ai = ["openai>=2,<4", "keyring>=25,<27"]
 test = ["pytest>=8,<10", "trimesh>=4,<6", "numpy>=2,<3"]
+vision = ["numpy>=2,<3", "scipy>=1.12,<2", "scikit-image>=0.24,<1", "opencv-python-headless>=4.9,<5", "trimesh>=4,<6"]
 
 [project.scripts]
 goshman = "goshman.cli:main"
