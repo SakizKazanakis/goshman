@@ -209,6 +209,38 @@ class MultiViewProvider:
             temp.unlink(missing_ok=True)
 
 
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def _exclusive_job_lock(path: Path):
+    """OS file lock, released even after process crashes; prevents double billing."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as lock:
+        try:
+            if os.name == "nt":
+                import msvcrt
+                lock.seek(0)
+                lock.write(b"\0")
+                lock.flush()
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (OSError, BlockingIOError) as exc:
+            raise ReconstructionError("Another generation job with the same inputs is already running") from exc
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
 def run_multiview_job(folder: Path, provider: str, *, approve_upload: bool = False,
                       approve_billing: bool = False, api_key: str | None = None,
                       timeout_seconds: int = 900, poll_interval: int = 15,
@@ -221,56 +253,57 @@ def run_multiview_job(folder: Path, provider: str, *, approve_upload: bool = Fal
         hashlib.sha256(views[v].read_bytes()).hexdigest() for v in VIEWS)).encode()).hexdigest()
     result_dir = folder / "output" / "reconstruction" / provider / digest[:16]
     result_dir.mkdir(parents=True, exist_ok=True)
-    state_path = result_dir / "job.json"
-    # Persisted remote tasks must be resumed, not silently resubmitted for payment.
-    cached = json.loads(state_path.read_text(encoding="utf-8")) if state_path.is_file() else {}
-    if cached and cached.get("input_sha256") != digest:
-        raise ReconstructionError("Input/reference version changed during reconstruction")
-    if cached.get("status") == "PASS_TECHNICAL":
-        artifact = result_dir / "model.glb"
-        if artifact.is_file() and cached.get("artifact", {}).get("sha256") == hashlib.sha256(artifact.read_bytes()).hexdigest():
-            return cached
-    state = cached or {"provider": provider, "input_sha256": digest, "status": "PREFLIGHT",
-                        "view_roles": list(VIEWS), "actual_api_test": False}
-    atomic_json(state_path, state)
-    if not approve_upload or not approve_billing:
-        state["status"] = "BLOCKED"
-        state["reason"] = "Private image upload and paid generation require explicit authorization"
+    with _exclusive_job_lock(result_dir / ".submit.lock"):
+        state_path = result_dir / "job.json"
+        # Persisted remote tasks must be resumed, not silently resubmitted for payment.
+        cached = json.loads(state_path.read_text(encoding="utf-8")) if state_path.is_file() else {}
+        if cached and cached.get("input_sha256") != digest:
+            raise ReconstructionError("Input/reference version changed during reconstruction")
+        if cached.get("status") == "PASS_TECHNICAL":
+            artifact = result_dir / "model.glb"
+            if artifact.is_file() and cached.get("artifact", {}).get("sha256") == hashlib.sha256(artifact.read_bytes()).hexdigest():
+                return cached
+        state = cached or {"provider": provider, "input_sha256": digest, "status": "PREFLIGHT",
+                            "view_roles": list(VIEWS), "actual_api_test": False}
         atomic_json(state_path, state)
-        return state
-    if not client.key:
-        state["status"] = "BLOCKED"
-        state["reason"] = "No authorized provider API credential"
-        atomic_json(state_path, state)
-        return state
-    task_id = state.get("task_id")
-    if task_id is None:
-        task_id = client.submit(views, allow_image_upload=True, allow_paid_generation=True)
-        state.update({"status": "RUNNING", "task_id": task_id, "actual_api_test": True})
-        atomic_json(state_path, state)
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() <= deadline:
-        progress = client.poll(task_id)
-        state.update(progress)
-        atomic_json(state_path, state)
-        if progress["status"] == "SUCCESS":
-            url = progress.get("download_url")
-            if not isinstance(url, str):
-                state["status"] = "FAIL"
-                state["reason"] = "Provider reports success but no GLB asset is available"
-                atomic_json(state_path, state)
-                return state
-            artifact = client.download_model(url, result_dir / "model.glb")
-            state.pop("download_url", None)  # Never persist signed provider URLs.
-            state["artifact"] = artifact
-            state["status"] = "PASS_TECHNICAL"
+        if not approve_upload or not approve_billing:
+            state["status"] = "BLOCKED"
+            state["reason"] = "Private image upload and paid generation require explicit authorization"
             atomic_json(state_path, state)
             return state
-        if progress["status"] == "FAIL":
-            state["status"] = "FAIL"
+        if not client.key:
+            state["status"] = "BLOCKED"
+            state["reason"] = "No authorized provider API credential"
+            atomic_json(state_path, state)
             return state
-        sleep(poll_interval)
-    state["status"] = "BLOCKED"
-    state["reason"] = "Polling time budget exhausted; task may still be running remotely"
-    atomic_json(state_path, state)
-    return state
+        task_id = state.get("task_id")
+        if task_id is None:
+            task_id = client.submit(views, allow_image_upload=True, allow_paid_generation=True)
+            state.update({"status": "RUNNING", "task_id": task_id, "actual_api_test": True})
+            atomic_json(state_path, state)
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() <= deadline:
+            progress = client.poll(task_id)
+            state.update(progress)
+            atomic_json(state_path, state)
+            if progress["status"] == "SUCCESS":
+                url = progress.get("download_url")
+                if not isinstance(url, str):
+                    state["status"] = "FAIL"
+                    state["reason"] = "Provider reports success but no GLB asset is available"
+                    atomic_json(state_path, state)
+                    return state
+                artifact = client.download_model(url, result_dir / "model.glb")
+                state.pop("download_url", None)  # Never persist signed provider URLs.
+                state["artifact"] = artifact
+                state["status"] = "PASS_TECHNICAL"
+                atomic_json(state_path, state)
+                return state
+            if progress["status"] == "FAIL":
+                state["status"] = "FAIL"
+                return state
+            sleep(poll_interval)
+        state["status"] = "BLOCKED"
+        state["reason"] = "Polling time budget exhausted; task may still be running remotely"
+        atomic_json(state_path, state)
+        return state
