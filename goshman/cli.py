@@ -8,7 +8,7 @@ from .export import export_atlas
 from .quality import audit_project
 from .reference_views import prepare_turnaround
 from .reconstruction import run_multiview_job
-from .backend import run_blender, import_external_glb
+from .backend import run_blender, import_external_glb, run_cycles_bake
 
 
 def main(argv=None) -> int:
@@ -45,6 +45,13 @@ def main(argv=None) -> int:
     ai_import.add_argument("destination", type=Path)
     ai_import.add_argument("--height", type=float, default=6.2)
     ai_import.add_argument("--blender")
+    bake = sub.add_parser("bake", help="Actual Cycles source-high-to-low texture bake")
+    bake.add_argument("--scene",type=Path,required=True)
+    bake.add_argument("--high",required=True)
+    bake.add_argument("--low",required=True)
+    bake.add_argument("--output",type=Path,required=True)
+    bake.add_argument("--resolution",type=int,choices=(64,128,256,512,1024,2048,4096),default=1024)
+    bake.add_argument("--blender")
     audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
     audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
@@ -89,6 +96,12 @@ def main(argv=None) -> int:
                                         blender_path=args.blender, height=args.height)
             print(result.stdout)
             print(result.stderr, file=sys.stderr)
+            return result.returncode
+        elif args.action == "bake":
+            result=run_cycles_bake(args.scene,args.high,args.low,args.output,
+                resolution=args.resolution,blender_path=args.blender)
+            print(result.stdout)
+            print(result.stderr,file=sys.stderr)
             return result.returncode
         elif args.action == "audit":
             report = audit_project(args.folder)
