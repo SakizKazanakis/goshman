@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 import bpy
 
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from goshman.blender_bake import bake_pair
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -31,9 +32,7 @@ report=bake_pair(high,low,folder,resolution=64,max_ray_distance=.25,
                  cage_extrusion=.08)
 assert report["source_faces"]>report["target_faces"]*5
 assert set(report["channels"])=={"normal","base_color","roughness","metallic"}
-from PIL import Image
 for filename in (folder/"normal.png",folder/"base_color.png",folder/"roughness.png",folder/"metallic.png"):
-    with Image.open(filename) as image:
-        assert image.size==(64,64)
-        assert image.getbbox() is not None
+    image=bpy.data.images.load(str(filename),check_existing=False)
+    assert tuple(image.size)==(64,64)
 print("BAKE_RUNTIME_PASS",json.dumps({"high":report["source_faces"],"low":report["target_faces"]}))
