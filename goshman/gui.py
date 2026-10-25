@@ -148,6 +148,12 @@ class Window(QMainWindow):
         neural_btn=QPushButton("СОЗДАТЬ НАСТОЯЩУЮ 3D-МОДЕЛЬ ЧЕРЕЗ AI")
         neural_btn.clicked.connect(self.generate_neural)
         nv.addWidget(neural_btn)
+        audit_btn=QPushButton("Проверить исходные 4 ракурса")
+        audit_btn.clicked.connect(self.audit_ai_views)
+        nv.addWidget(audit_btn)
+        self.import_ai_btn=QPushButton("Импортировать AI GLB в редактируемый Blender-проект")
+        self.import_ai_btn.clicked.connect(self.import_ai_glb)
+        nv.addWidget(self.import_ai_btn)
         nv.addWidget(QLabel("После завершения GLB проверяется автоматически; точность по референсам и риг ещё требуют QA."))
         nv.addStretch()
         right.addTab(neural,"AI → 3D")
@@ -316,6 +322,72 @@ class Window(QMainWindow):
                 QMessageBox.information(self, "Проверка GOSHMAN", "Технические проверки пройдены. Визуальное сходство с референсами не подтверждено.")
         except Exception as exc:
             self.fail(str(exc))
+
+    def audit_ai_views(self):
+        if not self.folder:
+            return self.fail("Проект не открыт")
+        try:
+            from .reference_preflight import audit_multiview_inputs
+            report=audit_multiview_inputs(self.folder)
+            self.note(f"Четыре исходных AI-ракурса: {report['status']}")
+            for warning in report["warnings"]:
+                self.note("ПРЕДУПРЕЖДЕНИЕ: "+warning)
+            for error in report["errors"]:
+                self.note("ОШИБКА: "+error)
+        except Exception as exc:
+            self.fail(str(exc))
+
+    def import_ai_glb(self):
+        if not self.folder or not self.project:
+            return self.fail("Проект не открыт")
+        # Allows an already downloaded mesh, even when a provider API is unavailable.
+        start=str(self.folder/"output"/"reconstruction")
+        asset,_=QFileDialog.getOpenFileName(self,"Выберите реальный GLB-меш",start,
+                                            "glTF Binary (*.glb)")
+        if not asset:
+            return
+        try:
+            from .quality import inspect_glb
+            from .backend import find_blender, import_external_glb
+            source=Path(asset).resolve(strict=True)
+            result=inspect_glb(source)
+            if result["meshes"]<1:
+                raise ValueError("В GLB не обнаружено геометрии")
+            # Filenames derived from hash avoid overwriting other imported versions.
+            from .project import sha256_file
+            digest=sha256_file(source)[:16]
+            destination=self.folder/"output"/"reconstruction"/"imports"/(digest+".blend")
+            if destination.exists():
+                self.note("BLEND уже подготовлен: "+str(destination))
+                return
+            blender_path=str(find_blender(self.blender_path.text().strip() or None))
+            project_folder=self.folder
+            requested_height=float(self.fields["height"].value())
+            def convert():
+                operation=import_external_glb(source,destination,
+                            blender_path=blender_path,height=requested_height)
+                return {"returncode":operation.returncode,"stdout":operation.stdout,
+                        "stderr":operation.stderr,"destination":str(destination),
+                        "project":str(project_folder)}
+            task=Task(convert)
+            task.signals.done.connect(self.import_ai_finished)
+            task.signals.fail.connect(self.fail)
+            self._tasks.append(task);self.threads.start(task)
+            self.note("Импорт AI GLB в Blender запущен без изменения исходного файла")
+        except Exception as exc:
+            self.fail(str(exc))
+
+    def import_ai_finished(self,result):
+        if result["returncode"] != 0:
+            self.fail("Blender не смог импортировать GLB. "+
+                      str(result.get("stderr",""))[-1200:])
+            return
+        file=Path(result["destination"])
+        if not file.is_file():
+            return self.fail("Blender завершился, но файл .blend отсутствует")
+        self.note("Редактируемый Blender-проект создан: "+str(file))
+        if self.folder is not None and str(self.folder)==result["project"]:
+            self.note("Исходный GLB сохранён без изменений; сходство с референсами ещё не подтверждено.")
 
     def generate_neural(self):
         if not self.folder or not self.project:
