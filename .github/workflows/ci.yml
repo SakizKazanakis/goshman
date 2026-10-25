@@ -62,6 +62,10 @@ jobs:
           test -s ci_project/output/cycles_bake_test/base_color.png
           python -c "import json; from pathlib import Path; r=json.loads(Path('ci_project/output/cycles_bake_test/bake_report.json').read_text()); assert r['method']=='selected_to_active' and r['source_faces']>r['target_faces']*5"
 
+      - name: Render five actual GLB views for visual acceptance
+        run: |
+          blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python goshman/blender_render_views.py -- --model ci_project/output/crocodile_cowboy.glb --output ci_project/output/qa_views --width 128 --height 256 --samples 1
+          python -c "from pathlib import Path; import json; p=Path('ci_project/output/qa_views'); d=json.loads((p/'render_manifest.json').read_text()); assert d['status']=='PASS_RENDER_TECHNICAL'; assert set(d['views'])=={'front','left','back','right','three_quarter'}; assert all((p/(r+'.png')).stat().st_size>100 for r in d['views'])"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -85,7 +89,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -c "from PySide6.QtCore import QTimer; from PySide6.QtWidgets import QApplication; from goshman.gui import Window; app=QApplication([]); w=Window(); QTimer.singleShot(500,app.quit); app.exec()"
       - name: Build Windows folder application
-        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" --add-data "goshman/pbr_blender.py;goshman" --add-data "goshman/pbr_maps.py;goshman" --add-data "goshman/blender_import_ai.py;goshman" --add-data "goshman/blender_bake.py;goshman" goshman_app.py
+        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" --add-data "goshman/pbr_blender.py;goshman" --add-data "goshman/pbr_maps.py;goshman" --add-data "goshman/blender_import_ai.py;goshman" --add-data "goshman/blender_bake.py;goshman" --add-data "goshman/blender_render_views.py;goshman" goshman_app.py
       - name: Smoke-test packaged Windows EXE
         env:
           QT_QPA_PLATFORM: offscreen
