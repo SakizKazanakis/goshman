@@ -68,6 +68,8 @@ jobs:
         run: |
           blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python goshman/blender_render_views.py -- --model ci_project/output/crocodile_cowboy.glb --output ci_project/output/qa_views --width 128 --height 256 --samples 1
           python -c "from pathlib import Path; import json; p=Path('ci_project/output/qa_views'); d=json.loads((p/'render_manifest.json').read_text()); assert d['status']=='PASS_RENDER_TECHNICAL'; assert set(d['views'])=={'front','left','back','right','three_quarter'}; assert all((p/(r+'.png')).stat().st_size>100 for r in d['views'])"
+          python -c "from PIL import Image; import numpy as np; a=np.asarray(Image.open('ci_project/output/qa_views/front.png').convert('RGBA')); v=a[a[:,:,3]>150,:3]; assert len(v)>800, len(v); assert v.mean()>35 and v.max()>120, (v.mean(),v.max()); print('RENDER REAL COLOR PASS',v.mean(axis=0))"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
