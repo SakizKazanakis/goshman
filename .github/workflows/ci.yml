@@ -2,7 +2,7 @@ name: GOSHMAN CI
 
 on:
   push:
-    branches: [main, feature/pbr-uv-textures-and-export-validation-20261024]
+    branches: [main, feature/v3-reconstruction-pipeline-20261025]
   workflow_dispatch:
 
 concurrency:
@@ -47,6 +47,11 @@ jobs:
           python -c "from PIL import Image; im=Image.open('ci_project/output/preview_front.png'); assert im.mode=='RGBA'; assert im.size==(384,384); im.verify()"
           python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/build_report.json').read_text()); assert d['mesh_objects']>=170; assert d['bones']>=39; assert d['actions']>=25; assert abs(d['overall_scale']-1.2)<.0001; assert abs(d['tail_tip_y']-3.69)<.001, d"
           python -c "import json,struct; from pathlib import Path; b=Path('ci_project/output/crocodile_cowboy.glb').read_bytes(); assert b[:4]==b'glTF'; n=struct.unpack_from('<I',b,12)[0]; doc=json.loads(b[20:20+n]); assert len(doc.get('animations',[]))>=25, len(doc.get('animations',[])); assert len(doc.get('images',[]))>=10, len(doc.get('images',[])); assert any('normalTexture' in m for m in doc.get('materials',[])), 'normal maps absent'"
+      - name: Verify imported GLB converts into editable Blender master project
+        run: |
+          blender-runtime/blender-5.2.3-linux-x64/blender --background --factory-startup --python-exit-code 31 --python goshman/blender_import_ai.py -- --source ci_project/output/crocodile_cowboy.glb --destination ci_project/output/imported_character.blend --height 6.2
+          test -s ci_project/output/imported_character.blend
+          python -c "import json; from pathlib import Path; d=json.loads(Path('ci_project/output/imported_character.json').read_text()); assert d['mesh_objects']>=150 and d['faces']>1000; assert not d['visual_fidelity_verified']"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
