@@ -44,3 +44,23 @@ def run_blender(project_folder: Path, blender_path: str | None = None, render: b
                 pbr_resolution: int = 256) -> subprocess.CompletedProcess:
     cmd = blender_command(project_folder, blender_path, render, export, size, pbr_resolution)
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=False, check=False)
+
+
+def import_external_glb(source: Path, destination: Path, *,
+                        blender_path: str | None = None, height: float = 6.2,
+                        timeout: int = 900) -> subprocess.CompletedProcess:
+    """Convert an actually existing external AI GLB to editable .blend via Blender."""
+    source = Path(source).resolve(strict=True)
+    from .quality import inspect_glb
+    if inspect_glb(source)["meshes"] < 1:
+        raise ValueError("External asset has no meshes")
+    destination = Path(destination).resolve()
+    if destination.suffix.lower() != ".blend":
+        raise ValueError("Destination must be a .blend file")
+    script = Path(__file__).with_name("blender_import_ai.py")
+    cmd = [str(find_blender(blender_path)), "--background", "--factory-startup",
+           "--python-exit-code", "31", "--python", str(script), "--",
+           "--source", str(source), "--destination", str(destination),
+           "--height", str(height)]
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                          shell=False, check=False)
