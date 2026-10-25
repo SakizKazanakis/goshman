@@ -64,3 +64,25 @@ def import_external_glb(source: Path, destination: Path, *,
            "--height", str(height)]
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                           shell=False, check=False)
+
+
+
+def run_cycles_bake(scene: Path, high: str, low: str, output: Path, *,
+                    blender_path: str | None = None, resolution: int = 1024,
+                    timeout: int = 3600) -> subprocess.CompletedProcess:
+    """Real source high-poly -> target low-poly Cycles bake (not synthetic PBR)."""
+    scene=Path(scene).resolve(strict=True)
+    if scene.suffix.lower()!=".blend":
+        raise ValueError("High/low source scene must be a Blender .blend file")
+    output=Path(output).resolve()
+    if resolution not in (64,128,256,512,1024,2048,4096):
+        raise ValueError("Bake resolution unsupported")
+    if not high or not low or high==low or len(high)>128 or len(low)>128:
+        raise ValueError("Two distinct Blender mesh object names are required")
+    script=Path(__file__).with_name("blender_bake.py")
+    cmd=[str(find_blender(blender_path)),"--background","--factory-startup",
+         "--python-exit-code","31","--python",str(script),"--",
+         "--scene",str(scene),"--high",high,"--low",low,
+         "--output",str(output),"--resolution",str(resolution)]
+    return subprocess.run(cmd,capture_output=True,text=True,timeout=timeout,
+                          shell=False,check=False)
