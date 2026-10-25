@@ -96,8 +96,14 @@ def render_views(model: Path, output: Path, *, width: int = 320,
         direction=Vector(unit).normalized()
         camera.location=center+direction*radius
         camera.rotation_euler=(center-camera.location).to_track_quat("-Z","Y").to_euler()
-        # Orthographic frame is padded for the longest axis including tail.
-        camera_data.ortho_scale=max(sizes.z*1.25, max(sizes.x,sizes.y)*height/width*1.45,1.0)
+        # Fit each projected camera silhouette independently; the long tail
+        # must not make front/back views unnecessarily tiny.
+        local_rotation=camera.rotation_euler.to_matrix().inverted()
+        projected=[local_rotation @ (corner-center) for corner in corners]
+        projected_width=max(v.x for v in projected)-min(v.x for v in projected)
+        projected_height=max(v.y for v in projected)-min(v.y for v in projected)
+        camera_data.ortho_scale=max(projected_height*1.16,
+                                    projected_width*height/width*1.16,1.0)
         target=output/(name+".png")
         scene.render.filepath=str(target)
         bpy.ops.render.render(write_still=True)
