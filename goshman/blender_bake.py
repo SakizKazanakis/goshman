@@ -57,6 +57,7 @@ def bake_pair(high, low, output: Path, *, resolution: int = 1024,
     # Emission signal routing for material scalar channels, restored after each bake.
     temporary = []
     outputs = {}
+    baked_images = {}
     try:
         for channel in ("normal", "base_color", "roughness", "metallic"):
             image = bpy.data.images.new(
@@ -112,9 +113,29 @@ def bake_pair(high, low, output: Path, *, resolution: int = 1024,
             if path.stat().st_size < 100:
                 raise RuntimeError("Baked image is missing or empty: " + channel)
             image.pack()
+            baked_images[channel] = image
             outputs[channel] = {"path":str(path),
                                 "bytes":path.stat().st_size,
                                 "sha256":hashlib.sha256(path.read_bytes()).hexdigest()}
+        # Connect the baked image resources to the actual low-poly PBR surface.
+        low_bsdf = next((n for n in nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if low_bsdf is None:
+            raise RuntimeError("Low-poly bake destination has no Principled BSDF")
+        for channel, image in baked_images.items():
+            texture = nodes.new("ShaderNodeTexImage")
+            texture.image = image
+            texture.label = "GOSHMAN_BAKED_" + channel
+            if channel == "base_color":
+                low_mat.node_tree.links.new(texture.outputs["Color"],low_bsdf.inputs["Base Color"])
+            elif channel == "normal":
+                normal = nodes.new("ShaderNodeNormalMap")
+                normal.inputs["Strength"].default_value = 1.0
+                low_mat.node_tree.links.new(texture.outputs["Color"],normal.inputs["Color"])
+                low_mat.node_tree.links.new(normal.outputs["Normal"],low_bsdf.inputs["Normal"])
+            elif channel == "roughness":
+                low_mat.node_tree.links.new(texture.outputs["Color"],low_bsdf.inputs["Roughness"])
+            elif channel == "metallic":
+                low_mat.node_tree.links.new(texture.outputs["Color"],low_bsdf.inputs["Metallic"])
         report = {"status":"PASS_BAKE_EXECUTED",
                   "engine":"CYCLES","method":"selected_to_active",
                   "source_high_poly":high.name,"target_low_poly":low.name,
