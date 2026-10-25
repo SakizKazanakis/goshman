@@ -8,7 +8,7 @@ from .export import export_atlas
 from .quality import audit_project
 from .reference_views import prepare_turnaround
 from .reconstruction import run_multiview_job
-from .backend import run_blender
+from .backend import run_blender, import_external_glb
 
 
 def main(argv=None) -> int:
@@ -40,6 +40,11 @@ def main(argv=None) -> int:
     reconstruct.add_argument("--approve-billing", action="store_true",
                              help="Explicitly approve the provider's paid generation operation")
     reconstruct.add_argument("--timeout", type=int, default=900)
+    ai_import = sub.add_parser("import-ai", help="Convert an actual external GLB to editable .blend")
+    ai_import.add_argument("source", type=Path)
+    ai_import.add_argument("destination", type=Path)
+    ai_import.add_argument("--height", type=float, default=6.2)
+    ai_import.add_argument("--blender")
     audit = sub.add_parser("audit", help="Validate actual Blender/GLB/PNG outputs (not visual fidelity)")
     audit.add_argument("folder", type=Path)
     atlas = sub.add_parser("atlas", help="Create Fusion spritesheet from PNG sequence")
@@ -79,6 +84,12 @@ def main(argv=None) -> int:
                  timeout_seconds=args.timeout)
             print(json.dumps(state, ensure_ascii=False, indent=2))
             return 0 if state["status"] == "PASS_TECHNICAL" else 2
+        elif args.action == "import-ai":
+            result = import_external_glb(args.source, args.destination,
+                                        blender_path=args.blender, height=args.height)
+            print(result.stdout)
+            print(result.stderr, file=sys.stderr)
+            return result.returncode
         elif args.action == "audit":
             report = audit_project(args.folder)
             print(json.dumps(report, ensure_ascii=False, indent=2))
