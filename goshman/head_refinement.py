@@ -67,12 +67,12 @@ def _mandible_shell(scale, snout, record):
     SAME mesh. No separate tubular side rails or floating chin ellipsoids.
     """
     left=[
-        (-.835*scale,-.205,4.695,.050,.063),
+        (-.835*scale,-.205,4.695,.046,.059),
         (-.81*scale,-.34,4.622,.070,.091),
-        (-.765*scale,-.54*snout,4.555,.090,.103),
-        (-.635*scale,-.76*snout,4.49,.124,.106),
-        (-.48*scale,-.92*snout,4.48,.148,.102),
-        (-.32*scale,-1.015*snout,4.48,.153,.098),
+        (-.765*scale,-.54*snout,4.555,.108,.120),
+        (-.635*scale,-.76*snout,4.49,.151,.135),
+        (-.48*scale,-.92*snout,4.48,.167,.125),
+        (-.32*scale,-1.015*snout,4.48,.166,.115),
         (-.16*scale,-1.075*snout,4.48,.151,.103),
         (0.0,-1.091*snout,4.48,.152,.105),
     ]
@@ -145,6 +145,45 @@ def _mandible_shell(scale, snout, record):
     return obj
 
 
+def _mouth_cavity(snout, scale, record):
+    """Concave anatomical mouth floor, rigidly carried by the jaw bone.
+
+    The half-elliptic basin has a rising lip rim and depressed posterior
+    centre. It is a separate interior liner, fitted to the unified mandible,
+    not an extra external jaw side rail.
+    """
+    rings=14
+    sides=56
+    verts=[]
+    faces=[]
+    # Basin stops anterior to the cranium / rotation hinge.
+    for i in range(rings+1):
+        rho=i/rings
+        for j in range(sides):
+            angle=2*math.pi*j/sides
+            x=.435*scale*rho*math.cos(angle)
+            y=-.925*snout + .166*snout*rho*math.sin(angle)
+            # lip rim at z=4.537, depressed center 4.425
+            z=4.425+.112*rho*rho
+            verts.append((x,y,z))
+            if i:
+                lo=(i-1)*sides
+                hi=i*sides
+                nxt=(j+1)%sides
+                faces.append((lo+j,lo+nxt,hi+nxt,hi+j))
+    mesh=bpy.data.meshes.new("Mandible_cavity_mesh")
+    mesh.from_pydata(verts,[],faces)
+    mesh.update()
+    obj=bpy.data.objects.new("Mandible_cavity_liner",mesh)
+    bpy.context.collection.objects.link(obj)
+    for poly in mesh.polygons:
+        poly.use_smooth=True
+    obj=record(obj,"Mouth","jaw")
+    obj["anatomy"]="concave_mouth_floor"
+    obj["rigid_jaw_attachment"]=True
+    return obj
+
+
 def _orbital_fairing(side, x, scale, eye_scale, record):
     """Conforming quad-strip blending the visible socket rim into the cranium.
 
@@ -213,6 +252,7 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
                   (sign*.844*scale,-.20,4.70),(.027,.067,.067),
                   "Metal","jaw",32,16)
     _mandible_shell(scale,snout,record)
+    _mouth_cavity(snout,scale,record)
     ellipsoid("Tongue",(0,-.94*snout,4.57),
               (.26,.13*snout,.031),"Mouth","jaw")
     for i in range(9):
@@ -247,7 +287,7 @@ def jaw_sweep_audit(rig, *, output=None):
     jaw=rig.pose.bones["jaw"]
     saved_rotation=tuple(jaw.rotation_euler)
     skull_names=("Head_cranium","Upper_snout","Cheek_L","Cheek_R")
-    moving_names=("Mandible_unified",)
+    moving_names=("Mandible_unified","Mandible_cavity_liner")
     poses=[]
     try:
         if data:
