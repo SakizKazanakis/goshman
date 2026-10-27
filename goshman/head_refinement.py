@@ -257,12 +257,56 @@ def _orbital_fairing(side, x, scale, eye_scale, record):
     return record(obj,"Scales","head")
 
 
+def _sculpt_cranium(obj):
+    """Reference-led skull blockout, keeping the existing bone-parent transform."""
+    for vertex in obj.data.vertices:
+        x,y,z=vertex.co
+        # Replace spherical cranial silhouette with taller upper brow region,
+        # blunter posterior volume and slightly narrower lower cheeks.
+        if z > .05:
+            x*=1.06
+            z*=1.025
+        else:
+            x*=.92+.12*(z+1.0)
+        y=(1 if y>=0 else -1)*abs(y)**.82
+        if y>0:
+            y*=1.10
+        if y<0 and z>.12:
+            y*=1.105
+        vertex.co=(x,y,z)
+    obj.data.update()
+    obj["reference_shape_version"]="v7_cranial_blockout"
+
+
+def _sculpt_snout(obj):
+    """Flatten the top and broaden the forward muzzle without moving its rig."""
+    for vertex in obj.data.vertices:
+        x,y,z=vertex.co
+        # Positive local Z top; forward is negative Y.
+        forward=max(0,min(1,(-y+.05)/1.05))
+        x*=.94+.29*forward
+        # Superellipse-like fore-aft envelope makes tip less ball-shaped.
+        y=(1 if y>=0 else -1)*(abs(y)**.73)
+        if z>0:
+            z*=.78+.10*(1-forward)
+        else:
+            z*=1.00
+        # broad shallow nostril shelf toward nose, but no protruding blobs.
+        if z>.38 and forward>.40:
+            z+=.055*forward
+        vertex.co=(x,y,z)
+    obj.data.update()
+    obj["reference_shape_version"]="v7_flat_broad_muzzle"
+
+
 def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     """Build independent skull, movable mandible, hinge seats, and eye sockets."""
-    ellipsoid("Head_cranium",(0,0,5.03),(.68*scale,.57*scale,.69*scale),
-              "Scales","head",48,24)
-    ellipsoid("Upper_snout",(0,-.57*snout,4.88),
-              (.70*scale,.51*snout,.27*scale),"Scales","head",48,24)
+    cranium=ellipsoid("Head_cranium",(0,0,5.03),(.68*scale,.57*scale,.69*scale),
+              "Scales","head",64,32)
+    _sculpt_cranium(cranium)
+    muzzle=ellipsoid("Upper_snout",(0,-.58*snout,4.88),
+              (.69*scale,.56*snout,.27*scale),"Scales","head",64,32)
+    _sculpt_snout(muzzle)
     # Lips meet in neutral with a narrow dark separating seam, not open air.
     ellipsoid("Upper_gum",(0,-.78*snout,4.657),
               (.58*scale,.325*snout,.084),"Mouth","head",40,18)
