@@ -54,6 +54,8 @@ def record(obj, material, bone=None):
     obj.data.materials.clear()
     obj.data.materials.append(M[material])
     if bone:
+        # Flush scale/location before preserving the world transform under bone parenting.
+        bpy.context.view_layer.update()
         world = obj.matrix_world.copy()
         obj.parent = RIG
         obj.parent_type = "BONE"
