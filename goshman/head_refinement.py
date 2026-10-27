@@ -127,7 +127,7 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         ellipsoid("Upper_eyelid_"+side,(x,-.59,5.42),
                   (.24*eye,.13,.072),"Scales","lid."+side)
         # All concentric hinge pieces have the SAME pivot, on both sides.
-        hx=sign*.725*scale
+        hx=sign*.855*scale
         cylinder("Jaw_hinge_socket_"+side,(hx,-.20,4.70),.116,.080,
                  "Black","head",40,(0,math.pi/2,0))
         cylinder("Jaw_hinge_bearing_"+side,(hx+sign*.047,-.20,4.70),
@@ -137,29 +137,29 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         # Mechanical mandibular rami are rigidly coupled to the jaw bone.
         # Retained crossing at the pivot is an intentional bearing fit.
         rail=[
-            (sign*.72*scale,-.20,4.70),
-            (sign*.69*scale,-.32,4.65),
-            (sign*.64*scale,-.52*snout,4.58),
-            (sign*.55*scale,-.78*snout,4.50),
+            (sign*.94*scale,-.20,4.70),
+            (sign*.89*scale,-.32,4.65),
+            (sign*.82*scale,-.52*snout,4.58),
+            (sign*.60*scale,-.78*snout,4.50),
             (sign*.39*scale,-.99*snout,4.485),
             (sign*.18*scale,-1.065*snout,4.49),
         ]
         _tube("Jaw_ram_"+side,rail,(.077,.096,.113,.115,.114,.108),
               "Belly","jaw",record)
         ellipsoid("Jaw_hinge_moving_cap_"+side,
-                  (sign*.74*scale,-.20,4.70),(.043,.092,.092),
+                  (sign*.94*scale,-.20,4.70),(.043,.092,.092),
                   "Metal","jaw",24,12)
-    ellipsoid("Lower_jaw",(0,-.655*snout,4.43),
-              (.54*scale,.47*snout,.130),"Belly","jaw",48,24)
+    ellipsoid("Lower_jaw",(0,-.94*snout,4.39),
+              (.50*scale,.20*snout,.075),"Belly","jaw",48,24)
     ellipsoid("Jaw_chin",(0,-1.045*snout,4.48),
               (.36*scale,.125*snout,.105),"Belly","jaw",40,18)
-    ellipsoid("Tongue",(0,-.76*snout,4.566),
-              (.27,.31*snout,.051),"Mouth","jaw")
+    ellipsoid("Tongue",(0,-.91*snout,4.46),
+              (.27,.18*snout,.051),"Mouth","jaw")
     for i in range(9):
         x=(-.50+i*.125)*scale
         fang("Upper_tooth_%02d"%i,(x,-.94*snout,4.67),
              .052,.14,True,"head")
-        fang("Lower_tooth_%02d"%i,(x,-.89*snout,4.59),
+        fang("Lower_tooth_%02d"%i,(x,-.89*snout,4.515),
              .049,.125,False,"jaw")
 
 
