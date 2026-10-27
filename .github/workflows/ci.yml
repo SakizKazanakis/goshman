@@ -41,6 +41,8 @@ jobs:
           test -s ci_project/output/crocodile_cowboy.glb
           test -s ci_project/output/crocodile_cowboy.fbx
           test -s ci_project/output/preview_front.png
+          test -s ci_project/output/jaw_sweep_report.json
+          python -c "from pathlib import Path; import json; p=json.loads(Path('ci_project/output/jaw_sweep_report.json').read_text()); assert p['samples']==33; assert p['kinematically_opens_downward'],p['chin_drop']; assert len(p['poses'])==33; print('JAW SWEEP',p['status'],p['collision_poses_beyond_neutral'])"
           test -s ci_project/output/pbr_manifest.json
           test "$(find ci_project/output/pbr -type f -name '*.png' | wc -l)" -eq 40
           python -c "from PIL import Image,ImageStat; from pathlib import Path; root=Path('ci_project/output/pbr'); a=Image.open(root/'scales_base_color.png').convert('RGB'); b=Image.open(root/'belly_base_color.png').convert('RGB'); n=Image.open(root/'scales_normal.png').convert('RGB'); r=Image.open(root/'scales_roughness.png').convert('RGB'); am=ImageStat.Stat(a).mean; bm=ImageStat.Stat(b).mean; nm=ImageStat.Stat(n).mean; rm=ImageStat.Stat(r).mean; assert am[1]>35 and am[1]>am[0] and am[1]>am[2],am; assert bm[0]>70 and bm[1]>50,bm; assert nm[2]>190,nm; assert 60<rm[0]<240,rm; print('PBR NONBLACK REAL PIXEL PASS',am,bm,nm,rm)"
@@ -93,7 +95,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -c "from PySide6.QtCore import QTimer; from PySide6.QtWidgets import QApplication; from goshman.gui import Window; app=QApplication([]); w=Window(); QTimer.singleShot(500,app.quit); app.exec()"
       - name: Build Windows folder application
-        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" --add-data "goshman/pbr_blender.py;goshman" --add-data "goshman/pbr_maps.py;goshman" --add-data "goshman/blender_import_ai.py;goshman" --add-data "goshman/blender_bake.py;goshman" --add-data "goshman/blender_render_views.py;goshman" goshman_app.py
+        run: pyinstaller --noconfirm --clean --windowed --name GOSHMAN --collect-all PySide6 --collect-all pydantic --collect-submodules openai --collect-submodules keyring --add-data "goshman/blender_generate.py;goshman" --add-data "goshman/head_refinement.py;goshman" --add-data "goshman/pbr_blender.py;goshman" --add-data "goshman/pbr_maps.py;goshman" --add-data "goshman/blender_import_ai.py;goshman" --add-data "goshman/blender_bake.py;goshman" --add-data "goshman/blender_render_views.py;goshman" goshman_app.py
       - name: Smoke-test packaged Windows EXE
         env:
           QT_QPA_PLATFORM: offscreen
