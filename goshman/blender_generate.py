@@ -197,7 +197,7 @@ def make_rig(spec):
         ("torso", (0,0,2.55), (0,0,4.2), "pelvis"),
         ("neck", (0,0,4.2), (0,0,4.48), "torso"),
         ("head", (0,0,4.48), (0,0,5.42), "neck"),
-        ("jaw", (0,-.38,4.75), (0,-.7,4.52), "head"),
+        ("jaw", (0,-.20,4.70), (0,-.20,4.90), "head"),
         ("eye.L", (-.36,-.57,5.21), (-.36,-.81,5.21), "head"),
         ("eye.R", (.36,-.57,5.21), (.36,-.81,5.21), "head"),
     ]
@@ -225,6 +225,9 @@ def make_rig(spec):
     for name, head, tail, parent in bones:
         b = arm.edit_bones.new(name)
         b.head, b.tail = head, tail
+        if name == "jaw":
+            # Local +X tracks global +X: positive pitch opens the snout downward.
+            b.align_roll(Vector((0,-1,0)))
         if parent:
             b.parent = arm.edit_bones[parent]
             b.use_connect = False
@@ -272,24 +275,10 @@ def build(spec):
     for i in range(3):
         cylinder("Neck_rib_%d"%i,(0,0,4.15+i*.13),.33,.07,"Metal","neck")
     # Crocodile skull: prominent cheek bones, tapered muzzle and lower jaw.
-    ellipsoid("Head_cranium", (0,0,5.03),(.68*scale,.57*scale,.69*scale),"Scales","head")
-    ellipsoid("Upper_snout", (0,-.57*snout,4.88),(.70*scale,.51*snout,.27*scale),"Scales","head")
-    for side, sign in (("L",-1),("R",1)):
-        ellipsoid("Cheek_"+side,(sign*.53*scale,-.22,4.78),(.28,.29,.24),"Scales","head")
-        ellipsoid("Nostril_"+side,(sign*.30*scale,-1.01*snout,5.01),(.095,.05,.07),"Black","head",16,8)
-        # All eyes are discrete mechanical elements and parented to their own controls.
-        ellipsoid("Eyeball_"+side,(sign*.35*scale,-.53,5.26),(.245*eye,.16,.258*eye),"White","eye."+side)
-        ellipsoid("Iris_"+side,(sign*.35*scale,-.685,5.26),(.129*eye,.059,.135*eye),"Iris","eye."+side)
-        ellipsoid("Pupil_"+side,(sign*.35*scale,-.736,5.26),(.068*eye,.032,.077*eye),"Black","eye."+side)
-        ellipsoid("Eyebrow_"+side,(sign*.35*scale,-.54,5.59),(.29,.11,.095),"Leather","brow."+side)
-        ellipsoid("Upper_eyelid_"+side,(sign*.35*scale,-.59,5.42),(.24*eye,.13,.072),"Scales","lid."+side,24,12)
-    ellipsoid("Lower_jaw",(0,-.56*snout,4.45),(.66*scale,.56*snout,.20),"Belly","jaw")
-    ellipsoid("Tongue",(0,-.76*snout,4.61),(.27,.35*snout,.055),"Mouth","jaw")
-    for i in range(9):
-        # Rows of separated teeth with opposing attachment points.
-        x = -.50 + i*.125
-        fang("Upper_tooth_%02d"%i,(x,-.95*snout,4.675),.057,.19,True,"head")
-        fang("Lower_tooth_%02d"%i,(x,-.89*snout,4.63),.050,.14,False,"jaw")
+    # Reference-guided bilateral jaw and orbital socket assembly.
+    from head_refinement import build_head
+    build_head(scale=scale,snout=snout,eye=eye,
+               ellipsoid=ellipsoid,cylinder=cylinder,fang=fang,record=record)
     # Hat and star: independent hat elements follow the head.
     cowboy_brim("Hat_brim",(0,0,5.78),1.15,.89,"Leather","head")
     cylinder("Hat_crown",(0,0,6.00),.61,.39,"Leather","head",48)
@@ -419,7 +408,8 @@ def animate():
         for frame, rotations in sorted(keys.items()):
             for bone_name, euler in rotations.items():
                 pose_bone = RIG.pose.bones[bone_name]
-                pose_bone.rotation_euler = euler
+                pose_bone.rotation_euler = ((-euler[0],euler[1],euler[2])
+                                            if bone_name == "jaw" else euler)
                 pose_bone.keyframe_insert(data_path="rotation_euler", frame=frame, group=bone_name)
         action.use_fake_user = True
     reset_pose()
@@ -535,6 +525,9 @@ def main():
         (folder/'output'/'pbr_manifest.json').write_text(
             json.dumps(manifest,indent=2),encoding='utf-8')
     clips=animate()
+    from head_refinement import jaw_sweep_audit
+    jaw_audit=jaw_sweep_audit(RIG,output=folder/"output"/"jaw_sweep_report.json")
+    print("GOSHMAN_JAW_SWEEP="+json.dumps({k:v for k,v in jaw_audit.items() if k!="poses"}))
     setup_scene(args.size,float(raw['spec'].get('height',6.2)))
     do_exports(folder,args.render=='1',args.export=='1',args.size,clips)
     print('Built geometry objects:', count)
