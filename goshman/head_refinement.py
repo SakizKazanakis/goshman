@@ -177,16 +177,41 @@ def _mandible_shell(scale, snout, record):
     bpy.context.view_layer.objects.active=obj
     bpy.ops.object.select_all(action="DESELECT")
     obj.select_set(True)
-    obj.data.remesh_voxel_size=.014
+    obj.data.remesh_voxel_size=.010
     bpy.ops.object.voxel_remesh()
+    # Relax voxel stair-steps while keeping the mechanical joint support shape.
+    smooth=obj.modifiers.new("Mandible_voxel_surface_relax","SMOOTH")
+    smooth.factor=1.15
+    smooth.iterations=7
+    bpy.context.view_layer.objects.active=obj
+    bpy.ops.object.modifier_apply(modifier=smooth.name)
     obj.select_set(False)
     obj=record(obj,"Belly","jaw")
-    obj.data.materials.append(bpy.data.materials["Mouth"])
-    for polygon in obj.data.polygons:
-        center=polygon.center
-        if center.z>4.425 and center.y<-.68*snout and abs(center.x)<.58*scale:
-            polygon.material_index=1
-    obj["topology"]="single_voxel_union_solid_including_concave_floor"
+    # Continuous point-domain colour gives a soft material transition and
+    # avoids per-face pink/cream stripes on voxel triangles.
+    attr=obj.data.color_attributes.new(name="JawSurfaceColor",type="FLOAT_COLOR",domain="POINT")
+    belly=(.67,.50,.29,1.0)
+    gum=(.43,.17,.21,1.0)
+    for vert in obj.data.vertices:
+        x,y,z=vert.co
+        front=max(0,min(1,(-y/-y/snout-.64)/.23))
+        height=max(0,min(1,(z-4.415)/.120))
+        centre=max(0,min(1,(.62*scale-abs(x))/.19))
+        t=front*height*centre
+        t=t*t*(3-2*t)
+        attr.data[vert.index].color=tuple(belly[k]*(1-t)+gum[k]*t for k in range(4))
+    material=bpy.data.materials.new("Mandible_soft_blended_skin")
+    material.use_nodes=True
+    nodes=material.node_tree.nodes
+    bsdf=nodes.get("Principled BSDF")
+    color_node=nodes.new("ShaderNodeVertexColor")
+    color_node.layer_name="JawSurfaceColor"
+    material.node_tree.links.new(color_node.outputs["Color"],bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value=.67
+    obj.data.materials.clear()
+    obj.data.materials.append(material)
+    obj["topology"]="single_smoothed_voxel_union_anatomical_floor"
+    obj["surface_colour"]="continuous_point_domain_rgba"
     for polygon in obj.data.polygons:
         polygon.use_smooth=True
     return obj
