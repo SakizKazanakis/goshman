@@ -109,58 +109,38 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
               (.58*scale,.325*snout,.084),"Mouth","head",40,18)
     for side,sign in (("L",-1),("R",1)):
         x=sign*.35*scale
-        ellipsoid("Cheek_"+side,(sign*.53*scale,-.22,4.78),
-                  (.28*scale,.29,.225),"Scales","head",32,20)
-        ellipsoid("Nostril_"+side,(sign*.30*scale,-1.01*snout,5.01),
-                  (.095,.05,.07),"Black","head",16,8)
+        ellipsoid("Cheek_"+side,(sign*.545*scale,-.165,4.80),(.25*scale,.31,.205),"Scales","head",40,24)
+        ellipsoid("Nostril_"+side,(sign*.30*scale,-1.01*snout,5.01),(.082,.04,.052),"Black","head",20,12)
         _orbital_fairing(side,x,scale,eye,record)
-        ellipsoid("Orbit_recess_"+side,(x,-.515,5.26),
-                  (.267*eye,.051,.28*eye),"Black","head",40,20)
-        ellipsoid("Eyeball_"+side,(x,-.53,5.26),
-                  (.245*eye,.16,.258*eye),"White","eye."+side,40,20)
-        ellipsoid("Iris_"+side,(x,-.685,5.26),
-                  (.129*eye,.059,.135*eye),"Iris","eye."+side,32,16)
-        ellipsoid("Pupil_"+side,(x,-.736,5.26),
-                  (.068*eye,.032,.077*eye),"Black","eye."+side,24,12)
-        ellipsoid("Eyebrow_"+side,(x,-.54,5.59),
-                  (.29,.11,.095),"Leather","brow."+side)
-        ellipsoid("Upper_eyelid_"+side,(x,-.59,5.42),
-                  (.24*eye,.13,.072),"Scales","lid."+side)
-        # All concentric hinge pieces have the SAME pivot, on both sides.
-        hx=sign*.855*scale
-        cylinder("Jaw_hinge_socket_"+side,(hx,-.20,4.70),.116,.080,
-                 "Black","head",40,(0,math.pi/2,0))
-        cylinder("Jaw_hinge_bearing_"+side,(hx+sign*.047,-.20,4.70),
-                 .086,.055,"Metal","head",40,(0,math.pi/2,0))
-        cylinder("Jaw_hinge_pin_"+side,(hx+sign*.089,-.20,4.70),
-                 .036,.027,"Metal","head",32,(0,math.pi/2,0))
-        # Mechanical mandibular rami are rigidly coupled to the jaw bone.
-        # Retained crossing at the pivot is an intentional bearing fit.
+        ellipsoid("Orbit_recess_"+side,(x,-.505,5.26),(.255*eye,.048,.260*eye),"Black","head",40,20)
+        ellipsoid("Eyeball_"+side,(x,-.527,5.26),(.220*eye,.134,.225*eye),"White","eye."+side,48,24)
+        ellipsoid("Iris_"+side,(x,-.645,5.26),(.118*eye,.049,.126*eye),"Iris","eye."+side,32,16)
+        ellipsoid("Pupil_"+side,(x,-.681,5.26),(.060*eye,.025,.066*eye),"Black","eye."+side,24,12)
+        ellipsoid("Eyebrow_"+side,(x,-.55,5.59),(.268,.084,.078),"Leather","brow."+side,32,16)
+        ellipsoid("Upper_eyelid_"+side,(x,-.555,5.415),(.227*eye,.10,.057),"Scales","lid."+side,32,16)
+        hx=sign*.795*scale
+        cylinder("Jaw_hinge_socket_"+side,(hx,-.20,4.70),.093,.050,"Black","head",40,(0,math.pi/2,0))
+        cylinder("Jaw_hinge_bearing_"+side,(hx+sign*.032,-.20,4.70),.074,.040,"Metal","head",40,(0,math.pi/2,0))
+        cylinder("Jaw_hinge_pin_"+side,(hx+sign*.056,-.20,4.70),.028,.020,"Metal","head",32,(0,math.pi/2,0))
         rail=[
-            (sign*.94*scale,-.20,4.70),
-            (sign*.89*scale,-.32,4.65),
-            (sign*.82*scale,-.52*snout,4.58),
-            (sign*.60*scale,-.78*snout,4.50),
-            (sign*.39*scale,-.99*snout,4.485),
-            (sign*.18*scale,-1.065*snout,4.49),
+            (sign*.835*scale,-.205,4.695),
+            (sign*.81*scale,-.34,4.622),
+            (sign*.765*scale,-.54*snout,4.555),
+            (sign*.635*scale,-.76*snout,4.49),
+            (sign*.48*scale,-.92*snout,4.48),
+            (sign*.32*scale,-1.015*snout,4.48),
+            (sign*.16*scale,-1.055*snout,4.49),
         ]
-        _tube("Jaw_ram_"+side,rail,(.077,.096,.113,.115,.114,.108),
-              "Belly","jaw",record)
-        ellipsoid("Jaw_hinge_moving_cap_"+side,
-                  (sign*.94*scale,-.20,4.70),(.043,.092,.092),
-                  "Metal","jaw",24,12)
-    ellipsoid("Lower_jaw",(0,-.94*snout,4.39),
-              (.50*scale,.20*snout,.075),"Belly","jaw",48,24)
-    ellipsoid("Jaw_chin",(0,-1.045*snout,4.48),
-              (.36*scale,.125*snout,.105),"Belly","jaw",40,18)
-    ellipsoid("Tongue",(0,-.91*snout,4.46),
-              (.27,.18*snout,.051),"Mouth","jaw")
+        _tube("Jaw_ram_"+side,rail,(.054,.080,.112,.133,.137,.130,.120),"Belly","jaw",record,sides=24)
+        ellipsoid("Jaw_hinge_moving_cap_"+side,(sign*.844*scale,-.20,4.70),(.027,.067,.067),"Metal","jaw",32,16)
+    ellipsoid("Lower_jaw",(0,-.925*snout,4.41),(.49*scale,.188*snout,.090),"Belly","jaw",48,24)
+    ellipsoid("Jaw_chin",(0,-1.037*snout,4.48),(.34*scale,.13*snout,.112),"Belly","jaw",48,24)
+    ellipsoid("Lower_gum",(0,-.946*snout,4.541),(.43*scale,.175*snout,.045),"Mouth","jaw",40,18)
+    ellipsoid("Tongue",(0,-.94*snout,4.56),(.27,.12*snout,.030),"Mouth","jaw")
     for i in range(9):
         x=(-.50+i*.125)*scale
-        fang("Upper_tooth_%02d"%i,(x,-.94*snout,4.67),
-             .052,.14,True,"head")
-        fang("Lower_tooth_%02d"%i,(x,-.89*snout,4.515),
-             .049,.125,False,"jaw")
+        fang("Upper_tooth_%02d"%i,(x,-.94*snout,4.67),.052,.14,True,"head")
+        fang("Lower_tooth_%02d"%i,(x,-.89*snout,4.55),.043,.10,False,"jaw")
 
 
 def _world_bvh(obj, depsgraph):
