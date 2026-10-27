@@ -59,6 +59,92 @@ def _tube(name, points, radii, material, bone, record, sides=16):
     return record(obj,material,bone)
 
 
+def _mandible_shell(scale, snout, record):
+    """One continuous U-shaped mesh, including both branches and the chin.
+
+    A rounded swept cross-section follows a symmetric mandibular centerline.
+    The inner top of the lip uses an additional mouth-material region in the
+    SAME mesh. No separate tubular side rails or floating chin ellipsoids.
+    """
+    left=[
+        (-.835*scale,-.205,4.695,.050,.063),
+        (-.81*scale,-.34,4.622,.070,.091),
+        (-.765*scale,-.54*snout,4.555,.090,.103),
+        (-.635*scale,-.76*snout,4.49,.124,.106),
+        (-.48*scale,-.92*snout,4.48,.148,.102),
+        (-.32*scale,-1.015*snout,4.48,.153,.098),
+        (-.16*scale,-1.075*snout,4.48,.151,.103),
+        (0.0,-1.091*snout,4.48,.152,.105),
+    ]
+    controls=left+[
+        (-x,y,z,rx,rz) for x,y,z,rx,rz in reversed(left[:-1])
+    ]
+    # Smooth position and size across the anterior symphysis and both rami.
+    def cat(a,b,c,d,t):
+        return .5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+
+                   (-a+3*b-3*c+d)*t*t*t)
+    spine=[]
+    for i in range(len(controls)-1):
+        a=controls[max(i-1,0)]
+        b=controls[i]
+        c=controls[i+1]
+        d=controls[min(i+2,len(controls)-1)]
+        for k in range(5):
+            t=k/5
+            spine.append(tuple(cat(a[j],b[j],c[j],d[j],t)
+                               for j in range(5)))
+    spine.append(controls[-1])
+    sides=24
+    verts=[]
+    faces=[]
+    mat_indexes=[]
+    for i,(x,y,z,rx,rz) in enumerate(spine):
+        prev=Vector(spine[max(i-1,0)][:3])
+        nxt=Vector(spine[min(i+1,len(spine)-1)][:3])
+        tangent=(nxt-prev).normalized()
+        # Horizontal direction toward the interior of the mouth.
+        across=Vector((-tangent.y,tangent.x,0))
+        if across.length<.0001:
+            across=Vector((1,0,0))
+        across.normalize()
+        up=Vector((0,0,1))
+        for j in range(sides):
+            phi=2*math.pi*j/sides
+            pos=Vector((x,y,z))+rx*math.cos(phi)*across+rz*math.sin(phi)*up
+            verts.append(tuple(pos))
+        if i:
+            for j in range(sides):
+                k=(j+1)%sides
+                first=(i-1)*sides
+                last=i*sides
+                faces.append((first+j,first+k,last+k,last+j))
+                # Colour inner/upper jaw gum as part of this one mesh.
+                mat_indexes.append(1 if math.sin(2*math.pi*(j+.5)/sides)>.78 else 0)
+    verts.extend((tuple(spine[0][:3]),tuple(spine[-1][:3])))
+    cap_a=len(verts)-2
+    cap_b=len(verts)-1
+    for j in range(sides):
+        k=(j+1)%sides
+        faces.append((cap_a,j,k))
+        mat_indexes.append(0)
+        offset=(len(spine)-1)*sides
+        faces.append((cap_b,offset+k,offset+j))
+        mat_indexes.append(0)
+    mesh=bpy.data.meshes.new("Mandible_unified_mesh")
+    mesh.from_pydata(verts,[],faces)
+    mesh.update()
+    obj=bpy.data.objects.new("Mandible_unified",mesh)
+    bpy.context.collection.objects.link(obj)
+    obj=record(obj,"Belly","jaw")
+    obj.data.materials.append(bpy.data.materials["Mouth"])
+    for polygon,index in zip(obj.data.polygons,mat_indexes):
+        polygon.material_index=index
+        polygon.use_smooth=True
+    obj["unified_mandible"]=True
+    obj["construction"]="continuous_symmetrical_U_sweep"
+    return obj
+
+
 def _orbital_fairing(side, x, scale, eye_scale, record):
     """Conforming quad-strip blending the visible socket rim into the cranium.
 
@@ -122,21 +208,13 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         cylinder("Jaw_hinge_socket_"+side,(hx,-.20,4.70),.093,.050,"Black","head",40,(0,math.pi/2,0))
         cylinder("Jaw_hinge_bearing_"+side,(hx+sign*.032,-.20,4.70),.074,.040,"Metal","head",40,(0,math.pi/2,0))
         cylinder("Jaw_hinge_pin_"+side,(hx+sign*.056,-.20,4.70),.028,.020,"Metal","head",32,(0,math.pi/2,0))
-        rail=[
-            (sign*.835*scale,-.205,4.695),
-            (sign*.81*scale,-.34,4.622),
-            (sign*.765*scale,-.54*snout,4.555),
-            (sign*.635*scale,-.76*snout,4.49),
-            (sign*.48*scale,-.92*snout,4.48),
-            (sign*.32*scale,-1.015*snout,4.48),
-            (sign*.16*scale,-1.055*snout,4.49),
-        ]
-        _tube("Jaw_ram_"+side,rail,(.054,.080,.112,.133,.137,.130,.120),"Belly","jaw",record,sides=24)
-        ellipsoid("Jaw_hinge_moving_cap_"+side,(sign*.844*scale,-.20,4.70),(.027,.067,.067),"Metal","jaw",32,16)
-    ellipsoid("Lower_jaw",(0,-.925*snout,4.41),(.49*scale,.188*snout,.090),"Belly","jaw",48,24)
-    ellipsoid("Jaw_chin",(0,-1.037*snout,4.48),(.34*scale,.13*snout,.112),"Belly","jaw",48,24)
-    ellipsoid("Lower_gum",(0,-.946*snout,4.541),(.43*scale,.175*snout,.045),"Mouth","jaw",40,18)
-    ellipsoid("Tongue",(0,-.94*snout,4.56),(.27,.12*snout,.030),"Mouth","jaw")
+        # The hinge cap is recessed, while the lower jaw is ONE uninterrupted mesh.
+        ellipsoid("Jaw_hinge_moving_cap_"+side,
+                  (sign*.844*scale,-.20,4.70),(.027,.067,.067),
+                  "Metal","jaw",32,16)
+    _mandible_shell(scale,snout,record)
+    ellipsoid("Tongue",(0,-.94*snout,4.57),
+              (.26,.13*snout,.031),"Mouth","jaw")
     for i in range(9):
         x=(-.50+i*.125)*scale
         fang("Upper_tooth_%02d"%i,(x,-.94*snout,4.67),.052,.14,True,"head")
@@ -169,7 +247,7 @@ def jaw_sweep_audit(rig, *, output=None):
     jaw=rig.pose.bones["jaw"]
     saved_rotation=tuple(jaw.rotation_euler)
     skull_names=("Head_cranium","Upper_snout","Cheek_L","Cheek_R")
-    moving_names=("Lower_jaw","Jaw_chin","Jaw_ram_L","Jaw_ram_R")
+    moving_names=("Mandible_unified",)
     poses=[]
     try:
         if data:
@@ -188,8 +266,9 @@ def jaw_sweep_audit(rig, *, output=None):
                     if overlaps:
                         hits[a+"/"+b]=len(overlaps)
             # Ground-truth displacement of the chin's evaluated object origin.
-            chin=bpy.data.objects["Jaw_chin"].evaluated_get(deps)
-            tip=tuple(round(float(v),6) for v in chin.matrix_world.translation)
+            chin=bpy.data.objects["Mandible_unified"].evaluated_get(deps)
+            forward_vertex=min(chin.data.vertices,key=lambda v:v.co.y)
+            tip=tuple(round(float(v),6) for v in (chin.matrix_world @ forward_vertex.co))
             poses.append({"angle_rad":round(angle,6),
                           "angle_deg":round(math.degrees(angle),3),
                           "chin_world":tip,
@@ -201,7 +280,7 @@ def jaw_sweep_audit(rig, *, output=None):
         scene.frame_set(saved_frame)
         bpy.context.view_layer.update()
     drop=poses[0]["chin_world"][2]-poses[-1]["chin_world"][2]
-    # Lower jaw has designed seating contact in the first poses;
+    # The one-piece lower jaw has designed seating contact in the first poses;
     # surface intersection counts are diagnostics requiring inspection.
     nonneutral=[p for p in poses[1:] if p["surface_triangle_overlaps"]]
     result={
