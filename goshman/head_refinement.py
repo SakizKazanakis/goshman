@@ -251,6 +251,23 @@ def _mandible_shell(scale, snout, record):
         mod.object=cutter
         bpy.ops.object.modifier_apply(modifier=mod.name)
         bpy.data.objects.remove(cutter,do_unlink=True)
+    # Paired axial keyways in the jaw lug (socket material is removed).
+    for sign in (-1,1):
+        for side_y in (-1,1):
+            bpy.ops.mesh.primitive_cube_add(size=1,location=(
+                sign*.914,-.20+side_y*.087,4.70))
+            cutter=bpy.context.object
+            cutter.dimensions=(.270,.018,.028)
+            bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active=obj
+            mod=obj.modifiers.new('Bushing_keyway_cut','BOOLEAN')
+            mod.operation='DIFFERENCE'
+            mod.solver='EXACT'
+            mod.object=cutter
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            bpy.data.objects.remove(cutter,do_unlink=True)
     obj['hinge_lug_design']='integrated_voxel_union_with_two_boolean_through_bores'
     obj['hinge_bore_radius']=.088
     obj.data.update()
@@ -519,6 +536,12 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         _coaxial_sleeve("Jaw_hinge_bushing_"+side,
                         (sign*.919,-.20,4.70),.064,.084,.151,
                         record,"jaw")
+        # The lugs rotate with the jaw; a pair of keys gives the sleeve a
+        # positive torsional connection instead of relying on friction.
+        for side_y in (-1,1):
+            cylinder("unused" if False else "Jaw_hinge_key_"+side+("_A" if side_y<0 else "_B"),
+                     (sign*.919,-.20+side_y*.087,4.70),
+                     .012,.148,"Metal","jaw",12,(0,math.pi/2,0))
         _coaxial_sleeve("Jaw_hinge_moving_cap_"+side,
                         (sign*1.010,-.20,4.70),.064,.087,.014,
                         record,"jaw")
