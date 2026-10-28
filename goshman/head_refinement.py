@@ -344,8 +344,8 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     """Build independent skull, movable mandible, hinge seats, and eye sockets."""
     cranium,muzzle=_build_section_head(scale,snout,record)
     # Lips meet in neutral with a narrow dark separating seam, not open air.
-    ellipsoid("Upper_gum",(0,-.78*snout,4.657),
-              (.58*scale,.325*snout,.084),"Mouth","head",40,18)
+    ellipsoid("Upper_gum",(0,-.76*snout,4.708),
+              (.56*scale,.300*snout,.051),"Mouth","head",40,18)
     for side,sign in (("L",-1),("R",1)):
         x=sign*.285*scale
         # The cheek seats close to the mandibular ramus without moving the joint.
@@ -368,27 +368,32 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
                   (sign*.844*scale,-.20,4.70),(.027,.067,.067),
                   "Metal","jaw",32,16)
     _mandible_shell(scale,snout,record)
-    ellipsoid("Tongue",(0,-.94*snout,4.57),
-              (.26,.13*snout,.031),"Mouth","jaw")
+    ellipsoid("Tongue",(0,-.69*snout,4.557),
+              (.185,.110*snout,.025),"Mouth","jaw")
+    # v15 true paired dental arc: each tooth has an independently positioned
+    # root, size and height and follows a curved horseshoe contour in XY.
     for i in range(9):
-        x=(-.50+i*.125)*scale
-        # Individualised alternating tooth-row spacing while retaining order.
-        # Symmetric paired dentition: midline and ±i mirror exactly. Each
-        # tooth is independently parameterised without random asymmetry.
+        u=(i-4)/4.0
         rank=abs(i-4)
-        tooth_pair=rank//2
-        ux=x + (0.0 if i==4 else (1 if i>4 else -1)*.007*scale)
-        lx=x + (0.0 if i==4 else (1 if i>4 else -1)*.016*scale)
-        upper_radius=(.048,.045,.051,.046,.044)[rank]
-        lower_radius=(.037,.042,.038,.043,.036)[rank]
-        upper_height=(.130,.144,.139,.153,.128)[rank]
-        lower_height=(.108,.119,.112,.125,.106)[rank]
-        upper_y=(-.95+.010*tooth_pair)*snout
-        lower_y=(-.93+.013*tooth_pair)*snout
-        fang("Upper_tooth_%02d"%i,(ux,upper_y,4.67),
-             upper_radius,upper_height,True,"head")
-        fang("Lower_tooth_%02d"%i,(lx,lower_y,4.584),
-             lower_radius,lower_height,False,"jaw")
+        # Front center of jaw at negative Y; root arches backward to corners.
+        upper_x=(.52*scale)*u
+        lower_x=(.50*scale)*u
+        upper_y=(-1.00+.25*u*u)*snout
+        lower_y=(-.945+.21*u*u)*snout
+        upper_radius=(.045,.048,.043,.052,.045)[rank]
+        lower_radius=(.036,.043,.040,.046,.037)[rank]
+        upper_height=(.135,.148,.143,.152,.128)[rank]
+        lower_height=(.109,.125,.120,.132,.111)[rank]
+        upper_root_z=4.675
+        lower_root_z=4.576
+        # cone base centers are offset half-height to keep each tooth root
+        # anchored to its corresponding gum surface (not a straight line).
+        fang("Upper_tooth_%02d"%i,
+             (upper_x,upper_y,upper_root_z),upper_radius,upper_height,
+             True,"head")
+        fang("Lower_tooth_%02d"%i,
+             (lower_x,lower_y,lower_root_z),lower_radius,lower_height,
+             False,"jaw")
 
 
 def _world_bvh(obj, depsgraph):
