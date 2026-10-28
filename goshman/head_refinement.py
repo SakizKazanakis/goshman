@@ -373,14 +373,22 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     for i in range(9):
         x=(-.50+i*.125)*scale
         # Individualised alternating tooth-row spacing while retaining order.
-        ux=x + ((i % 2)*2-1)*.008*scale
-        lx=x + (1 if i % 2 else -1)*.012*scale
-        upper_radius=.047 + (.003 if i in (1,7) else 0.0)
-        lower_radius=.039 + (.003 if i in (2,6) else 0.0)
-        fang("Upper_tooth_%02d"%i,(ux,-.94*snout,4.67),
-             upper_radius,.14,True,"head")
-        fang("Lower_tooth_%02d"%i,(lx,-.89*snout,4.57),
-             lower_radius,.10,False,"jaw")
+        # Symmetric paired dentition: midline and ±i mirror exactly. Each
+        # tooth is independently parameterised without random asymmetry.
+        rank=abs(i-4)
+        tooth_pair=rank//2
+        ux=x + (0.0 if i==4 else (1 if i>4 else -1)*.007*scale)
+        lx=x + (0.0 if i==4 else (1 if i>4 else -1)*.016*scale)
+        upper_radius=(.048,.045,.051,.046,.044)[rank]
+        lower_radius=(.037,.042,.038,.043,.036)[rank]
+        upper_height=(.130,.144,.139,.153,.128)[rank]
+        lower_height=(.108,.119,.112,.125,.106)[rank]
+        upper_y=(-.95+.010*tooth_pair)*snout
+        lower_y=(-.93+.013*tooth_pair)*snout
+        fang("Upper_tooth_%02d"%i,(ux,upper_y,4.67),
+             upper_radius,upper_height,True,"head")
+        fang("Lower_tooth_%02d"%i,(lx,lower_y,4.584),
+             lower_radius,lower_height,False,"jaw")
 
 
 def _world_bvh(obj, depsgraph):
