@@ -401,6 +401,16 @@ def _gum_band(name,stations,scale,record,bone,upper):
     return record(obj,'Mouth',bone)
 
 
+def _hinge_ring(name, location, major_radius, minor_radius, material, record):
+    """Tubular socket ring; central axle aperture remains clear."""
+    bpy.ops.mesh.primitive_torus_add(major_segments=48,minor_segments=12,
+                                    location=location,rotation=(0,math.pi/2,0),
+                                    major_radius=major_radius,minor_radius=minor_radius)
+    obj=bpy.context.object
+    obj.name=name
+    return record(obj,material,'head')
+
+
 def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     """Build independent skull, movable mandible, hinge seats, and eye sockets."""
     cranium,muzzle=_build_section_head(scale,snout,record)
@@ -419,7 +429,8 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         ellipsoid("Eyebrow_"+side,(x,-.55,5.59),(.268,.084,.078),"Leather","brow."+side,32,16)
         ellipsoid("Upper_eyelid_"+side,(x,-.555,5.415),(.227*eye,.10,.057),"Scales","lid."+side,32,16)
         hx=sign*.795*scale
-        cylinder("Jaw_hinge_socket_"+side,(hx,-.20,4.70),.093,.050,"Black","head",40,(0,math.pi/2,0))
+        _hinge_ring("Jaw_hinge_socket_"+side,
+                    (hx+sign*.013,-.20,4.70),.107,.020,"Black",record)
         cylinder("Jaw_hinge_bearing_"+side,(hx+sign*.032,-.20,4.70),.074,.040,"Metal","head",40,(0,math.pi/2,0))
         cylinder("Jaw_hinge_pin_"+side,(hx+sign*.056,-.20,4.70),.028,.020,"Metal","head",32,(0,math.pi/2,0))
         # The hinge cap is recessed, while the lower jaw is ONE uninterrupted mesh.
