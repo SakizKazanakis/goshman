@@ -340,6 +340,37 @@ def _build_section_head(scale,snout,record):
             _section_mesh('Upper_snout',muzzle,'Scales','head',record))
 
 
+def _socket_gum(name, xyz, tooth_radius, direction, record, bone):
+    """Open annular gum collar with a tapered recessed socket mouth.
+
+    This is not a Boolean cavity cut into a unified gum volume; its inner
+    annular aperture is a true opening with walls and no cap.
+    """
+    n=32
+    x0,y0,z0=xyz
+    radii=[tooth_radius*.82,tooth_radius*1.08,tooth_radius*1.57]
+    heights=[0.0,.019*direction,.030*direction]
+    vertices=[]
+    for rad,dz in zip(radii,heights):
+        for k in range(n):
+            t=2*math.pi*k/n
+            vertices.append((x0+rad*math.cos(t),y0+rad*math.sin(t),z0+dz))
+    faces=[]
+    for ring in range(2):
+        for k in range(n):
+            j=(k+1)%n
+            faces.append((ring*n+k,ring*n+j,(ring+1)*n+j,(ring+1)*n+k))
+    mesh=bpy.data.meshes.new(name+'_gum_mesh')
+    mesh.from_pydata(vertices,[],faces)
+    mesh.update()
+    obj=bpy.data.objects.new(name,mesh)
+    bpy.context.collection.objects.link(obj)
+    for face in mesh.polygons:face.use_smooth=True
+    obj=record(obj,'Mouth',bone)
+    obj['socket_type']='open_annular_gum_collar_not_boolean_bone_cavity'
+    return obj
+
+
 def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     """Build independent skull, movable mandible, hinge seats, and eye sockets."""
     cranium,muzzle=_build_section_head(scale,snout,record)
@@ -388,6 +419,12 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         lower_root_z=4.576
         # cone base centers are offset half-height to keep each tooth root
         # anchored to its corresponding gum surface (not a straight line).
+        _socket_gum("Upper_socket_%02d"%i,
+                    (upper_x,upper_y,upper_root_z-upper_height*.5),
+                    upper_radius,1,record,"head")
+        _socket_gum("Lower_socket_%02d"%i,
+                    (lower_x,lower_y,lower_root_z+lower_height*.5),
+                    lower_radius,-1,record,"jaw")
         fang("Upper_tooth_%02d"%i,
              (upper_x,upper_y,upper_root_z),upper_radius,upper_height,
              True,"head")
