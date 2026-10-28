@@ -344,43 +344,67 @@ def _build_section_head(scale,snout,record):
             _section_mesh('Upper_snout',muzzle,'Scales','head',record))
 
 
-def _socket_gum(name, xyz, tooth_radius, direction, record, bone):
-    """Open annular gum collar with a tapered recessed socket mouth.
+def _cut_dental_sockets(gum, stations, direction):
+    """Cut 9 actual cylindrical depressions into a continuous gum solid."""
+    for i,(x,y,r) in enumerate(stations):
+        bpy.ops.mesh.primitive_cylinder_add(vertices=32,radius=r*1.22,
+                                            depth=(.220 if direction<0 else .118),
+                                            location=(x,y,4.745 if direction<0 else 4.510))
+        cutter=bpy.context.object
+        cutter.name='Dental_cavity_cutter_tmp'
+        bpy.context.view_layer.objects.active=gum
+        bpy.ops.object.select_all(action='DESELECT')
+        gum.select_set(True)
+        modifier=gum.modifiers.new('Real_tooth_socket_%02d'%i,'BOOLEAN')
+        modifier.operation='DIFFERENCE'
+        modifier.solver='EXACT'
+        modifier.object=cutter
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+        bpy.data.objects.remove(cutter,do_unlink=True)
+    gum['socket_count']=len(stations)
+    gum['construction']='connected_solid_with_boolean_cut_sockets'
+    return gum
 
-    This is not a Boolean cavity cut into a unified gum volume; its inner
-    annular aperture is a true opening with walls and no cap.
-    """
-    n=32
-    x0,y0,z0=xyz
-    radii=[tooth_radius*.82,tooth_radius*1.08,tooth_radius*1.57]
-    heights=[0.0,.019*direction,.030*direction]
-    vertices=[]
-    for rad,dz in zip(radii,heights):
-        for k in range(n):
-            t=2*math.pi*k/n
-            vertices.append((x0+rad*math.cos(t),y0+rad*math.sin(t),z0+dz))
-    faces=[]
-    for ring in range(2):
-        for k in range(n):
-            j=(k+1)%n
-            faces.append((ring*n+k,ring*n+j,(ring+1)*n+j,(ring+1)*n+k))
-    mesh=bpy.data.meshes.new(name+'_gum_mesh')
-    mesh.from_pydata(vertices,[],faces)
-    mesh.update()
+
+def _gum_band(name,stations,scale,record,bone,upper):
+    """One swept closed 3D gum band with 9 Boolean-cut sockets."""
+    centers=[Vector((x,y,4.756 if upper else 4.494)) for x,y,r in stations]
+    verts=[];faces=[]
+    count=32
+    for k,c in enumerate(centers):
+        tangent=(centers[min(len(centers)-1,k+1)]-
+                 centers[max(0,k-1)]).normalized()
+        n=Vector((-tangent.y,tangent.x,0)).normalized()
+        r=.083 if upper else .078
+        for j in range(count):
+            theta=2*math.pi*j/count
+            verts.append(tuple(c+n*(r*math.cos(theta))+
+                               Vector((0,0,r*.85*math.sin(theta)))))
+        if k:
+            for j in range(count):
+                j2=(j+1)%count
+                faces.append(((k-1)*count+j,(k-1)*count+j2,
+                              k*count+j2,k*count+j))
+    verts.extend((tuple(centers[0]),tuple(centers[-1])))
+    a,b=len(verts)-2,len(verts)-1
+    off=(len(centers)-1)*count
+    for j in range(count):
+        j2=(j+1)%count
+        faces.append((a,j2,j))
+        faces.append((b,off+j,off+j2))
+    mesh=bpy.data.meshes.new(name+'_integrated_mesh')
+    mesh.from_pydata(verts,[],faces);mesh.update()
     obj=bpy.data.objects.new(name,mesh)
     bpy.context.collection.objects.link(obj)
-    for face in mesh.polygons:face.use_smooth=True
-    obj=record(obj,'Mouth',bone)
-    obj['socket_type']='open_annular_gum_collar_not_boolean_bone_cavity'
-    return obj
+    _cut_dental_sockets(obj,stations,-1 if upper else 1)
+    for face in obj.data.polygons:face.use_smooth=True
+    return record(obj,'Mouth',bone)
 
 
 def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     """Build independent skull, movable mandible, hinge seats, and eye sockets."""
     cranium,muzzle=_build_section_head(scale,snout,record)
-    # Lips meet in neutral with a narrow dark separating seam, not open air.
-    ellipsoid("Upper_gum",(0,-.76*snout,4.708),
-              (.56*scale,.300*snout,.051),"Mouth","head",40,18)
+    # Tooth-bearing gums are built after the rest of the head.
     for side,sign in (("L",-1),("R",1)):
         x=sign*.285*scale
         # The cheek seats close to the mandibular ramus without moving the joint.
@@ -405,36 +429,26 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     _mandible_shell(scale,snout,record)
     ellipsoid("Tongue",(0,-.69*snout,4.557),
               (.185,.110*snout,.025),"Mouth","jaw")
-    # v15 true paired dental arc: each tooth has an independently positioned
-    # root, size and height and follows a curved horseshoe contour in XY.
+    upper_stations=[]
+    lower_stations=[]
+    # Two mirrored horseshoe dental rails with distinct root sizes.
     for i in range(9):
         u=(i-4)/4.0
         rank=abs(i-4)
-        # Front center of jaw at negative Y; root arches backward to corners.
-        upper_x=(.52*scale)*u
-        lower_x=(.50*scale)*u
-        upper_y=(-1.00+.25*u*u)*snout
-        lower_y=(-.945+.21*u*u)*snout
-        upper_radius=(.045,.048,.043,.052,.045)[rank]
-        lower_radius=(.036,.043,.040,.046,.037)[rank]
-        upper_height=(.135,.148,.143,.152,.128)[rank]
-        lower_height=(.109,.125,.120,.132,.111)[rank]
-        upper_root_z=4.675
-        lower_root_z=4.576
-        # cone base centers are offset half-height to keep each tooth root
-        # anchored to its corresponding gum surface (not a straight line).
-        _socket_gum("Upper_socket_%02d"%i,
-                    (upper_x,upper_y,upper_root_z-upper_height*.5),
-                    upper_radius,1,record,"head")
-        _socket_gum("Lower_socket_%02d"%i,
-                    (lower_x,lower_y,lower_root_z+lower_height*.5),
-                    lower_radius,-1,record,"jaw")
-        fang("Upper_tooth_%02d"%i,
-             (upper_x,upper_y,upper_root_z),upper_radius,upper_height,
-             True,"head")
-        fang("Lower_tooth_%02d"%i,
-             (lower_x,lower_y,lower_root_z),lower_radius,lower_height,
-             False,"jaw")
+        ux=(.52*scale)*u
+        lx=(.50*scale)*u
+        uy=(-1.00+.25*u*u)*snout
+        ly=(-.945+.21*u*u)*snout
+        ur=(.045,.048,.043,.052,.045)[rank]
+        lr=(.036,.043,.040,.046,.037)[rank]
+        uh=(.135,.148,.143,.152,.128)[rank]
+        lh=(.109,.125,.120,.132,.111)[rank]
+        upper_stations.append((ux,uy,ur))
+        lower_stations.append((lx,ly,lr))
+        fang("Upper_tooth_%02d"%i,(ux,uy,4.675),ur,uh,True,"head")
+        fang("Lower_tooth_%02d"%i,(lx,ly,4.576),lr,lh,False,"jaw")
+    _gum_band('Upper_gum',upper_stations,scale,record,'head',True)
+    _gum_band('Lower_gum',lower_stations,scale,record,'jaw',False)
 
 
 def _world_bvh(obj, depsgraph):
