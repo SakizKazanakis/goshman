@@ -203,6 +203,10 @@ def _mandible_shell(scale, snout, record):
         px=x*(1-.075*front-.035*chin)
         # Thicker, dropped anterior jaw symphysis; rim stays near the upper gum.
         pz=z-(.185*front+.035*(1-front))*underside
+        # v13: multi-view fit of the forward mandibular profile.
+        # Weight vanishes at the hinge; retain original pivot and cheek seating.
+        profile_weight=weight((-.35-y)/.55)
+        py+=.18*profile_weight
         vertex.co=(px,py,pz)
     obj.data.update()
     obj.select_set(False)
@@ -368,8 +372,15 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
               (.26,.13*snout,.031),"Mouth","jaw")
     for i in range(9):
         x=(-.50+i*.125)*scale
-        fang("Upper_tooth_%02d"%i,(x,-.94*snout,4.67),.052,.14,True,"head")
-        fang("Lower_tooth_%02d"%i,(x,-.89*snout,4.55),.043,.10,False,"jaw")
+        # Individualised alternating tooth-row spacing while retaining order.
+        ux=x + ((i % 2)*2-1)*.008*scale
+        lx=x + (1 if i % 2 else -1)*.012*scale
+        upper_radius=.047 + (.003 if i in (1,7) else 0.0)
+        lower_radius=.039 + (.003 if i in (2,6) else 0.0)
+        fang("Upper_tooth_%02d"%i,(ux,-.94*snout,4.67),
+             upper_radius,.14,True,"head")
+        fang("Lower_tooth_%02d"%i,(lx,-.89*snout,4.57),
+             lower_radius,.10,False,"jaw")
 
 
 def _world_bvh(obj, depsgraph):
