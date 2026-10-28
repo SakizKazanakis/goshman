@@ -185,8 +185,30 @@ def _mandible_shell(scale, snout, record):
     smooth.iterations=7
     bpy.context.view_layer.objects.active=obj
     bpy.ops.object.modifier_apply(modifier=smooth.name)
+    # v11: sculpt AFTER voxel union. Keep the rear joint seat at its original
+    # hinge pivot, taper the broad cheeks forward and add lower chin mass.
+    # Smooth weights make all changes continuous across the full watertight jaw.
+    def weight(t):
+        t=max(0.0,min(1.0,t))
+        return t*t*(3-2*t)
+    for vertex in obj.data.vertices:
+        x,y,z=vertex.co
+        front=weight((-.38-y)/.70)
+        chin=weight((-.70-y)/.34)
+        underside=weight((4.58-z)/.27)
+        # Foremost U bend is too far ahead of the reference. Shift it rearward
+        # without displacing the mechanical rotation axis at y=-0.20.
+        py=y+.165*front
+        # Narrow the anterior bulk but preserve the bearing-seat width.
+        px=x*(1-.075*front-.035*chin)
+        # Thicker, dropped anterior jaw symphysis; rim stays near the upper gum.
+        pz=z-(.185*front+.035*(1-front))*underside
+        vertex.co=(px,py,pz)
+    obj.data.update()
     obj.select_set(False)
     obj=record(obj,"Belly","jaw")
+    obj["jaw_refinement"]="v11_anatomical_chin_and_taper"
+    obj["preserved_axis"]="-Y forward, jaw pivot Y=-0.20, Z=4.70"
     # Continuous point-domain colour gives a soft material transition and
     # avoids per-face pink/cream stripes on voxel triangles.
     attr=obj.data.color_attributes.new(name="JawSurfaceColor",type="FLOAT_COLOR",domain="POINT")
@@ -194,7 +216,7 @@ def _mandible_shell(scale, snout, record):
     gum=(.43,.17,.21,1.0)
     for vert in obj.data.vertices:
         x,y,z=vert.co
-        front=max(0,min(1,(-y/-y/snout-.64)/.23))
+        front=max(0,min(1,(-y/snout-.64)/.23))
         height=max(0,min(1,(z-4.415)/.120))
         centre=max(0,min(1,(.62*scale-abs(x))/.19))
         t=front*height*centre
