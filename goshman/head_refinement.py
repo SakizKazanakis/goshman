@@ -207,6 +207,10 @@ def _mandible_shell(scale, snout, record):
         # Weight vanishes at the hinge; retain original pivot and cheek seating.
         profile_weight=weight((-.35-y)/.55)
         py+=.18*profile_weight
+        # Symmetric v16 profile adjustment at lateral rami.
+        # Vanishes toward rear hinge and center of anterior chin.
+        side_weight=weight(abs(x)/.70)
+        py+=.07*profile_weight*side_weight
         vertex.co=(px,py,pz)
     obj.data.update()
     obj.select_set(False)
