@@ -129,6 +129,26 @@ def _mandible_shell(scale, snout, record):
     # Boolean-volume union: the anatomical floor is a SOLID volume rather
     # than an open liner. Voxel remeshing fuses it with both lateral rami into
     # ONE manifold component. Maintain the movable jaw's original bone.
+    # Integrate two load-bearing hinge lugs into the SAME watertight jaw.
+    # Their root overlaps the posterior ramus before voxel union.
+    # A true coaxial aperture will be cut after smoothing.
+    for sign in (-1,1):
+        n=48
+        start=len(verts)
+        xc=sign*.914
+        radius=.111
+        for x in (xc-.085,xc+.085):
+            for j in range(n):
+                t=2*math.pi*j/n
+                verts.append((x,-.20+radius*math.cos(t),
+                              4.70+radius*math.sin(t)))
+        verts.extend(((xc-.085,-.20,4.70),
+                      (xc+.085,-.20,4.70)))
+        for j in range(n):
+            k=(j+1)%n
+            faces.append((start+j,start+k,start+n+k,start+n+j))
+            faces.append((start+2*n,j+start,k+start))
+            faces.append((start+2*n+1,start+n+k,start+n+j))
     basin_verts=[]
     basin_faces=[]
     nx=22
@@ -212,6 +232,27 @@ def _mandible_shell(scale, snout, record):
         side_weight=weight(abs(x)/.70)
         py+=.07*profile_weight*side_weight
         vertex.co=(px,py,pz)
+    obj.data.update()
+    # Through-bores: remove solid center of both load ears and rear ramus.
+    # Outer jaw ear radius .111; bore .088, bushing OD .084, pin OD .058.
+    for sign in (-1,1):
+        bpy.ops.mesh.primitive_cylinder_add(
+            vertices=64,radius=.088,depth=.260,
+            location=(sign*.914,-.20,4.70),
+            rotation=(0,math.pi/2,0))
+        cutter=bpy.context.object
+        cutter.name='Mandible_hinge_bore_cutter_tmp'
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active=obj
+        mod=obj.modifiers.new('Jaw_through_bore_'+('L' if sign<0 else 'R'),'BOOLEAN')
+        mod.operation='DIFFERENCE'
+        mod.solver='EXACT'
+        mod.object=cutter
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        bpy.data.objects.remove(cutter,do_unlink=True)
+    obj['hinge_lug_design']='integrated_voxel_union_with_two_boolean_through_bores'
+    obj['hinge_bore_radius']=.088
     obj.data.update()
     obj.select_set(False)
     obj=record(obj,"Belly","jaw")
@@ -468,21 +509,21 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         # The head owns the load path: cheek neck -> pin -> outside retainer.
         # The jaw owns a hollow sleeve and its outboard flare.
         _hinge_ring("Jaw_hinge_socket_"+side,
-                    (hx+sign*.133,-.20,4.70),.107,.020,"Black",record)
+                    (sign*1.080,-.20,4.70),.111,.018,"Black",record)
         cylinder("Jaw_hinge_bearing_"+side,
-                 (sign*.830,-.20,4.70),.043,.125,
+                 (sign*.765,-.20,4.70),.072,.085,
                  "Metal","head",48,(0,math.pi/2,0))
         cylinder("Jaw_hinge_pin_"+side,
-                 (sign*.956,-.20,4.70),.058,.155,
+                 (sign*.908,-.20,4.70),.058,.298,
                  "Metal","head",48,(0,math.pi/2,0))
         _coaxial_sleeve("Jaw_hinge_bushing_"+side,
-                        (sign*.940,-.20,4.70),.064,.084,.150,
+                        (sign*.919,-.20,4.70),.064,.084,.151,
                         record,"jaw")
         _coaxial_sleeve("Jaw_hinge_moving_cap_"+side,
-                        (sign*1.008,-.20,4.70),.064,.087,.014,
+                        (sign*1.010,-.20,4.70),.064,.087,.014,
                         record,"jaw")
         cylinder("Jaw_hinge_retainer_"+side,
-                 (sign*1.041,-.20,4.70),.092,.014,
+                 (sign*1.044,-.20,4.70),.092,.014,
                  "Metal","head",48,(0,math.pi/2,0))
     _mandible_shell(scale,snout,record)
     ellipsoid("Tongue",(0,-.69*snout,4.557),
