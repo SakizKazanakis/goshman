@@ -304,9 +304,9 @@ def _build_section_head(scale,snout,record):
     muzzle=[
      (-1.20*snout,4.87,.36*scale,.095*scale,.95),
      (-1.16*snout,4.88,.62*scale,.15*scale,.95),
-     (-1.06*snout,4.88,.78*scale,.18*scale,.95),
-     (-.86*snout,4.88,.79*scale,.195*scale,.9),
-     (-.68*snout,4.89,.73*scale,.23*scale,.75),
+     (-1.06*snout,4.88,.86*scale,.18*scale,.95),
+     (-.86*snout,4.88,.89*scale,.195*scale,.9),
+     (-.68*snout,4.89,.79*scale,.23*scale,.75),
      (-.51*snout,4.91,.64*scale,.30*scale,.55),
      (-.35*snout,4.94,.50*scale,.34*scale,.35),
      (-.24*snout,4.95,.24*scale,.24*scale,.1)]
@@ -321,9 +321,9 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     ellipsoid("Upper_gum",(0,-.78*snout,4.657),
               (.58*scale,.325*snout,.084),"Mouth","head",40,18)
     for side,sign in (("L",-1),("R",1)):
-        x=sign*.35*scale
+        x=sign*.285*scale
         ellipsoid("Cheek_"+side,(sign*.545*scale,-.165,4.80),(.25*scale,.31,.205),"Scales","head",40,24)
-        ellipsoid("Nostril_"+side,(sign*.30*scale,-1.01*snout,5.01),(.082,.04,.052),"Black","head",20,12)
+        ellipsoid("Nostril_"+side,(sign*.205*scale,-1.065*snout,5.01),(.082,.04,.052),"Black","head",20,12)
         _orbital_fairing(side,x,scale,eye,record)
         ellipsoid("Orbit_recess_"+side,(x,-.505,5.26),(.255*eye,.048,.260*eye),"Black","head",40,20)
         ellipsoid("Eyeball_"+side,(x,-.527,5.26),(.220*eye,.134,.225*eye),"White","eye."+side,48,24)
