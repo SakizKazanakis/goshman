@@ -430,7 +430,7 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         ellipsoid("Upper_eyelid_"+side,(x,-.555,5.415),(.227*eye,.10,.057),"Scales","lid."+side,32,16)
         hx=sign*.795*scale
         _hinge_ring("Jaw_hinge_socket_"+side,
-                    (hx+sign*.013,-.20,4.70),.107,.020,"Black",record)
+                    (hx+sign*.133,-.20,4.70),.107,.020,"Black",record)
         cylinder("Jaw_hinge_bearing_"+side,(hx+sign*.032,-.20,4.70),.074,.040,"Metal","head",40,(0,math.pi/2,0))
         cylinder("Jaw_hinge_pin_"+side,(hx+sign*.056,-.20,4.70),.028,.020,"Metal","head",32,(0,math.pi/2,0))
         # The hinge cap is recessed, while the lower jaw is ONE uninterrupted mesh.
