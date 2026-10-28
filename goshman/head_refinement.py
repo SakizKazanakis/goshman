@@ -257,56 +257,66 @@ def _orbital_fairing(side, x, scale, eye_scale, record):
     return record(obj,"Scales","head")
 
 
-def _sculpt_cranium(obj):
-    """Reference-led skull blockout, keeping the existing bone-parent transform."""
-    for vertex in obj.data.vertices:
-        x,y,z=vertex.co
-        # Replace spherical cranial silhouette with taller upper brow region,
-        # blunter posterior volume and slightly narrower lower cheeks.
-        if z > .05:
-            x*=1.06
-            z*=1.025
-        else:
-            x*=.92+.12*(z+1.0)
-        y=(1 if y>=0 else -1)*abs(y)**.82
-        if y>0:
-            y*=1.10
-        if y<0 and z>.12:
-            y*=1.105
-        vertex.co=(x,y,z)
-    obj.data.update()
-    obj["reference_shape_version"]="v7_cranial_blockout"
+def _section_mesh(name,stations,material,bone,record,sectors=48):
+    """Continuous, parameterized non-spherical surface from axial sections."""
+    verts=[]
+    for y,z,rx,rz,flat in stations:
+        for i in range(sectors):
+            t=2*math.pi*i/sectors
+            c=math.cos(t);q=math.sin(t)
+            x=rx*math.copysign(abs(c)**.8,c)
+            h=rz*math.copysign(abs(q)**(1.35 if q>0 else .85),q)
+            if q>0:h*=1-.14*flat
+            verts.append((x,y,z+h))
+    faces=[]
+    for k in range(len(stations)-1):
+        for i in range(sectors):
+            j=(i+1)%sectors
+            faces.append((k*sectors+i,k*sectors+j,(k+1)*sectors+j,(k+1)*sectors+i))
+    verts.extend(((0,stations[0][0],stations[0][1]),(0,stations[-1][0],stations[-1][1])))
+    cap_a=len(verts)-2;cap_b=len(verts)-1
+    for i in range(sectors):
+        j=(i+1)%sectors
+        faces.append((cap_a,j,i))
+        p=(len(stations)-1)*sectors
+        faces.append((cap_b,p+i,p+j))
+    mesh=bpy.data.meshes.new(name+'_section_mesh')
+    mesh.from_pydata(verts,[],faces)
+    mesh.update()
+    obj=bpy.data.objects.new(name,mesh)
+    bpy.context.collection.objects.link(obj)
+    for polygon in mesh.polygons:polygon.use_smooth=True
+    obj['construction']='reference_guided_axial_sections_v8'
+    return record(obj,material,bone)
 
 
-def _sculpt_snout(obj):
-    """Flatten the top and broaden the forward muzzle without moving its rig."""
-    for vertex in obj.data.vertices:
-        x,y,z=vertex.co
-        # Positive local Z top; forward is negative Y.
-        forward=max(0,min(1,(-y+.05)/1.05))
-        x*=.94+.29*forward
-        # Superellipse-like fore-aft envelope makes tip less ball-shaped.
-        y=(1 if y>=0 else -1)*(abs(y)**.73)
-        if z>0:
-            z*=.78+.10*(1-forward)
-        else:
-            z*=1.00
-        # broad shallow nostril shelf toward nose, but no protruding blobs.
-        if z>.38 and forward>.40:
-            z+=.055*forward
-        vertex.co=(x,y,z)
-    obj.data.update()
-    obj["reference_shape_version"]="v7_flat_broad_muzzle"
+def _build_section_head(scale,snout,record):
+    skull=[
+     (-.57,5.12,.17*scale,.22*scale,.2),
+     (-.50,5.13,.42*scale,.43*scale,.3),
+     (-.36,5.11,.57*scale,.56*scale,.5),
+     (-.15,5.06,.66*scale,.67*scale,.7),
+     (.08,5.04,.70*scale,.70*scale,.8),
+     (.30,5.04,.65*scale,.64*scale,.5),
+     (.48,5.04,.53*scale,.54*scale,.2),
+     (.59,5.04,.32*scale,.34*scale,.1),
+     (.63,5.04,.08*scale,.13*scale,0)]
+    muzzle=[
+     (-1.20*snout,4.87,.36*scale,.095*scale,.95),
+     (-1.16*snout,4.88,.62*scale,.15*scale,.95),
+     (-1.06*snout,4.88,.78*scale,.18*scale,.95),
+     (-.86*snout,4.88,.79*scale,.195*scale,.9),
+     (-.68*snout,4.89,.73*scale,.23*scale,.75),
+     (-.51*snout,4.91,.64*scale,.30*scale,.55),
+     (-.35*snout,4.94,.50*scale,.34*scale,.35),
+     (-.24*snout,4.95,.24*scale,.24*scale,.1)]
+    return (_section_mesh('Head_cranium',skull,'Scales','head',record),
+            _section_mesh('Upper_snout',muzzle,'Scales','head',record))
 
 
 def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     """Build independent skull, movable mandible, hinge seats, and eye sockets."""
-    cranium=ellipsoid("Head_cranium",(0,0,5.03),(.68*scale,.57*scale,.69*scale),
-              "Scales","head",64,32)
-    _sculpt_cranium(cranium)
-    muzzle=ellipsoid("Upper_snout",(0,-.58*snout,4.88),
-              (.69*scale,.56*snout,.27*scale),"Scales","head",64,32)
-    _sculpt_snout(muzzle)
+    cranium,muzzle=_build_section_head(scale,snout,record)
     # Lips meet in neutral with a narrow dark separating seam, not open air.
     ellipsoid("Upper_gum",(0,-.78*snout,4.657),
               (.58*scale,.325*snout,.084),"Mouth","head",40,18)
