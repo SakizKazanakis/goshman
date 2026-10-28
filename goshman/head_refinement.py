@@ -302,11 +302,11 @@ def _build_section_head(scale,snout,record):
      (.59,5.04,.32*scale,.34*scale,.1),
      (.63,5.04,.08*scale,.13*scale,0)]
     muzzle=[
-     (-1.20*snout,4.87,.36*scale,.095*scale,.95),
-     (-1.16*snout,4.88,.62*scale,.15*scale,.95),
-     (-1.06*snout,4.88,.86*scale,.18*scale,.95),
-     (-.86*snout,4.88,.89*scale,.195*scale,.9),
-     (-.68*snout,4.89,.79*scale,.23*scale,.75),
+     (-1.33*snout,4.87,.37*scale,.095*scale,.95),
+     (-1.29*snout,4.88,.62*scale,.15*scale,.95),
+     (-1.18*snout,4.88,.86*scale,.18*scale,.95),
+     (-.97*snout,4.88,.89*scale,.195*scale,.9),
+     (-.75*snout,4.89,.79*scale,.23*scale,.75),
      (-.51*snout,4.91,.64*scale,.30*scale,.55),
      (-.35*snout,4.94,.50*scale,.34*scale,.35),
      (-.24*snout,4.95,.24*scale,.24*scale,.1)]
@@ -325,10 +325,10 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         ellipsoid("Cheek_"+side,(sign*.545*scale,-.165,4.80),(.25*scale,.31,.205),"Scales","head",40,24)
         ellipsoid("Nostril_"+side,(sign*.205*scale,-1.065*snout,5.01),(.082,.04,.052),"Black","head",20,12)
         _orbital_fairing(side,x,scale,eye,record)
-        ellipsoid("Orbit_recess_"+side,(x,-.505,5.26),(.255*eye,.048,.260*eye),"Black","head",40,20)
-        ellipsoid("Eyeball_"+side,(x,-.527,5.26),(.220*eye,.134,.225*eye),"White","eye."+side,48,24)
-        ellipsoid("Iris_"+side,(x,-.645,5.26),(.118*eye,.049,.126*eye),"Iris","eye."+side,32,16)
-        ellipsoid("Pupil_"+side,(x,-.681,5.26),(.060*eye,.025,.066*eye),"Black","eye."+side,24,12)
+        ellipsoid("Orbit_recess_"+side,(x,-.505,5.26),(.223*eye,.048,.230*eye),"Black","head",40,20)
+        ellipsoid("Eyeball_"+side,(x,-.527,5.26),(.186*eye,.120,.190*eye),"White","eye."+side,48,24)
+        ellipsoid("Iris_"+side,(x,-.645,5.26),(.106*eye,.045,.112*eye),"Iris","eye."+side,32,16)
+        ellipsoid("Pupil_"+side,(x,-.681,5.26),(.054*eye,.024,.059*eye),"Black","eye."+side,24,12)
         ellipsoid("Eyebrow_"+side,(x,-.55,5.59),(.268,.084,.078),"Leather","brow."+side,32,16)
         ellipsoid("Upper_eyelid_"+side,(x,-.555,5.415),(.227*eye,.10,.057),"Scales","lid."+side,32,16)
         hx=sign*.795*scale
