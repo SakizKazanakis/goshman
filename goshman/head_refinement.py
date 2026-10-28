@@ -344,7 +344,9 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
               (.58*scale,.325*snout,.084),"Mouth","head",40,18)
     for side,sign in (("L",-1),("R",1)):
         x=sign*.285*scale
-        ellipsoid("Cheek_"+side,(sign*.545*scale,-.165,4.80),(.25*scale,.31,.205),"Scales","head",40,24)
+        # The cheek seats close to the mandibular ramus without moving the joint.
+        ellipsoid("Cheek_"+side,(sign*.545*scale,-.18,4.80),
+                  (.245*scale,.305,.195),"Scales","head",48,28)
         ellipsoid("Nostril_"+side,(sign*.205*scale,-1.065*snout,5.01),(.082,.04,.052),"Black","head",20,12)
         _orbital_fairing(side,x,scale,eye,record)
         ellipsoid("Orbit_recess_"+side,(x,-.505,5.26),(.223*eye,.048,.230*eye),"Black","head",40,20)
