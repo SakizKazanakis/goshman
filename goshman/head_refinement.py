@@ -411,6 +411,41 @@ def _hinge_ring(name, location, major_radius, minor_radius, material, record):
     return record(obj,material,'head')
 
 
+def _coaxial_sleeve(name, location, inner_radius, outer_radius,
+                    axial_length, record, bone, material="Metal"):
+    """Manifold annular bushing: closed ends, cylindrical bore, rotating on X axis.
+
+    Constructed in world-space about the shared X hinge axis.
+    Neither head-frame axle nor socket is parented to the moving jaw.
+    """
+    n=48
+    x0,y0,z0=location
+    segments=[]
+    for offset,rad in ((-axial_length/2,outer_radius),
+                       (axial_length/2,outer_radius),
+                       (axial_length/2,inner_radius),
+                       (-axial_length/2,inner_radius)):
+        for i in range(n):
+            t=2*math.pi*i/n
+            segments.append((x0+offset,y0+rad*math.cos(t),z0+rad*math.sin(t)))
+    faces=[]
+    for j in range(4):
+        k=(j+1)%4
+        for i in range(n):
+            nexti=(i+1)%n
+            faces.append((j*n+i,j*n+nexti,k*n+nexti,k*n+i))
+    mesh=bpy.data.meshes.new(name+"_annular_mesh")
+    mesh.from_pydata(segments,[],faces)
+    mesh.update()
+    obj=bpy.data.objects.new(name,mesh)
+    bpy.context.collection.objects.link(obj)
+    for face in mesh.polygons:face.use_smooth=True
+    obj=record(obj,material,bone)
+    obj["bearing_geometry"]="coaxial_annular_cylindrical_bore"
+    obj["radial_clearance_design"]=round(inner_radius-.058,6)
+    return obj
+
+
 def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
     """Build independent skull, movable mandible, hinge seats, and eye sockets."""
     cranium,muzzle=_build_section_head(scale,snout,record)
@@ -429,14 +464,26 @@ def build_head(*, scale, snout, eye, ellipsoid, cylinder, fang, record):
         ellipsoid("Eyebrow_"+side,(x,-.55,5.59),(.268,.084,.078),"Leather","brow."+side,32,16)
         ellipsoid("Upper_eyelid_"+side,(x,-.555,5.415),(.227*eye,.10,.057),"Scales","lid."+side,32,16)
         hx=sign*.795*scale
+        # Kinematic assembly, all axis centers share Y=-0.20, Z=4.70.
+        # The head owns the load path: cheek neck -> pin -> outside retainer.
+        # The jaw owns a hollow sleeve and its outboard flare.
         _hinge_ring("Jaw_hinge_socket_"+side,
                     (hx+sign*.133,-.20,4.70),.107,.020,"Black",record)
-        cylinder("Jaw_hinge_bearing_"+side,(hx+sign*.032,-.20,4.70),.074,.040,"Metal","head",40,(0,math.pi/2,0))
-        cylinder("Jaw_hinge_pin_"+side,(hx+sign*.056,-.20,4.70),.028,.020,"Metal","head",32,(0,math.pi/2,0))
-        # The hinge cap is recessed, while the lower jaw is ONE uninterrupted mesh.
-        ellipsoid("Jaw_hinge_moving_cap_"+side,
-                  (sign*.844*scale,-.20,4.70),(.027,.067,.067),
-                  "Metal","jaw",32,16)
+        cylinder("Jaw_hinge_bearing_"+side,
+                 (sign*.830,-.20,4.70),.043,.125,
+                 "Metal","head",48,(0,math.pi/2,0))
+        cylinder("Jaw_hinge_pin_"+side,
+                 (sign*.956,-.20,4.70),.058,.155,
+                 "Metal","head",48,(0,math.pi/2,0))
+        _coaxial_sleeve("Jaw_hinge_bushing_"+side,
+                        (sign*.940,-.20,4.70),.064,.084,.150,
+                        record,"jaw")
+        _coaxial_sleeve("Jaw_hinge_moving_cap_"+side,
+                        (sign*1.008,-.20,4.70),.064,.087,.014,
+                        record,"jaw")
+        cylinder("Jaw_hinge_retainer_"+side,
+                 (sign*1.041,-.20,4.70),.092,.014,
+                 "Metal","head",48,(0,math.pi/2,0))
     _mandible_shell(scale,snout,record)
     ellipsoid("Tongue",(0,-.69*snout,4.557),
               (.185,.110*snout,.025),"Mouth","jaw")
