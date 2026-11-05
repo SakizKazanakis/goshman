@@ -70,12 +70,14 @@ jobs:
           python -c "from pathlib import Path; import json; p=Path('ci_project/output/qa_views'); d=json.loads((p/'render_manifest.json').read_text()); assert d['status']=='PASS_RENDER_TECHNICAL'; assert set(d['views'])=={'front','left','back','right','three_quarter'}; assert all((p/(r+'.png')).stat().st_size>100 for r in d['views'])"
           python -c "from PIL import Image; import numpy as np; a=np.asarray(Image.open('ci_project/output/qa_views/front.png').convert('RGBA')); v=a[a[:,:,3]>150,:3]; assert len(v)>800, len(v); assert v.mean()>35 and v.max()>120, (v.mean(),v.max()); print('RENDER REAL COLOR PASS',v.mean(axis=0))"
 
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - name: Upload diagnostic or manually requested Blender output
+        uses: actions/upload-artifact@v4
+        if: failure() || github.event_name == 'workflow_dispatch'
         with:
           name: goshman-blender-output
           path: ci_project/output/
           if-no-files-found: ignore
+          retention-days: 7
 
   windows:
     runs-on: windows-2022
@@ -103,9 +105,11 @@ jobs:
           $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
           Write-Output "Packaged executable exit code: $($p.ExitCode)"
           if ($p.ExitCode -ne 0) { throw "Packaged GOSHMAN.exe failed with exit code $($p.ExitCode)" }
-      - uses: actions/upload-artifact@v4
-        if: success()
+      - name: Upload manually requested Windows release candidate
+        uses: actions/upload-artifact@v4
+        if: success() && github.event_name == 'workflow_dispatch'
         with:
           name: goshman-windows-2022
           path: dist/GOSHMAN/
           if-no-files-found: error
+          retention-days: 14
